@@ -1,26 +1,41 @@
 package sync
 
-import (
-	"root/elevio"
+import(
+	root/config
 )
 
-type msgtosync struct {
-	hallCalls hallCalls
-	cabCalls  cabCalls
+type Call struct {
+	needService bool
+	timeStamp   time
 }
 
-type hallBools [config.NumFloors][2]bool
-type cabBools [config.NumFloors]bool
+type hallCallsType 	[config.NumFloors][2]Call
+type cabCallsType 	[config.NumFloors]Call
 
-type msgtomain struct {
-	hallBools hallBools
-	cabBools  [3]cabBools
-	elevatorStates [3]ElevState
+type hallBoolsType 	[config.NumFloors][2]bool
+type cabBoolsType 	[config.NumFloors]bool
+
+
+type hardwareCallsType struct {
+	hallCalls hallCallsType
+	cabCalls cabCallsType
 }
 
-func Sync(hardwareCalls chan msgtosync, syncedData chan msgtomain) {
-	for{
-		select {
+
+type syncedDataType sturct {
+	hallBools hallBoolsType
+	cabBools cabBoolsType
+}
+
+
+func sync (hardwareCalls chan hardwareCallsType, syncedData chan syncedDataType) {
+	var localCabCalls cabCallsType
+	var localHallCalls hallCallsType
+
+	for {
+		select{
+		case incomingHardwareCalls := <-hardwareCalls:
+			
 		}
 	}
 }

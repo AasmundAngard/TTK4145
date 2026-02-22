@@ -35,22 +35,20 @@ type AllElevatorsState struct {
 
 func main() {
 	// Init Hardware
+	elevState ElevState
 
 	elevio.Init("localhost:15657", 3) // Dette er til den lokale heisserveren man kan kjøre (alt. hardware)
-
-	drv_buttons := make(chan elevio.ButtonEvent)
-	go elevio.PollButtons(drv_buttons)
 	
-	// Polle stop-knapp og obstruction?
-	drv_obstr := make(chan bool)
-	drv_stop := make(chan bool)
+	// Polle stop-knapp og obstruction
+	obstruction := make(chan bool,1)
+	stopButton := make(chan bool,1)
 
-	go elevio.PollObstructionSwitch(drv_obstr)
-	go elevio.PollStopButton(drv_stop)
+	go elevio.PollObstructionSwitch(obstruction)
+	go elevio.PollStopButton(stopButton)
 	
-	drv_floors := make(chan int)
+	floorSensor := make(chan int,1)
 
-	go elevio.PollFloorSensor(drv_floors)
+	go elevio.PollFloorSensor(floorSensor)
 	// Init sync -> Sync starts reading from the network and hardware
 	// Lag kanaler som skal passe info fra main
 
@@ -80,7 +78,29 @@ func main() {
 
 	// Main starts receiving common hall calls,
 	// Main enters main loop
+	obstruction
+	stopButton	
+	floorSensor
 	for {
+		switch (elevBehaviour) {
+		case moving:
+			select {
+			case <-stopButton:
+				// Stop
+			case newFloor:= <-floorSensor:
+				currentFloor = a
+				if currentFloor in activeFloors {
+
+				}
+			case a:= 
+			}
+
+		case doorOpen:
+			
+		case idle:
+			
+
+		}
 
 		// Main only receives common hall calls from sync
 		// Light up hall buttons based on hall calls
@@ -124,5 +144,6 @@ func main() {
 		// if doorOpen and doorCountdown over -> try closing door
 
 	}
+	if 
 
 }

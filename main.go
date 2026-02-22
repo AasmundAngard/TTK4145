@@ -24,7 +24,7 @@ type ElevState struct {
 type CallList struct {
 	hallCalls	[]Call // 2n elementer to Call-objekt for hver etasje, en for opp og en for ned: 
 	// [Call_etg1_opp, Call_etg1_ned, Call_etg2_opp, Call_etg2_ned, ..., Call_etgn_opp, Call_etgn_ned]
-	cabCalls	[]Call // n elementer, ett Call-objekt for hver etasje
+	cabCalls	[config.NumFloors]Call // n elementer, ett Call-objekt for hver etasje
 }
 
 
@@ -52,11 +52,11 @@ func main() {
 	// sync <- main: direction and movement
 	// sync <- main: completed calls
 
-	callsC := make(chan )  // From sync
+	confirmedCallsC := make(chan CallList)  // From sync
 	localStateC := make(chan ElevState)   // To sync
-	completedCall := make(chan ButtonEvent) // To sync
+	completedCallC := make(chan ButtonEvent) // To sync
 
-	go sync(callsC, currStateC, completedCall)
+	go sync(callsC, currStateC, completedCallC)
 
 	// main can poll floorsensor directly
 

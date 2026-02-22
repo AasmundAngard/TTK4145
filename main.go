@@ -18,18 +18,13 @@ type Call struct {
 type ElevState struct {
 	behaviour   Behaviour
 	floor       int
-	direction   MotorDirection
+	direction   elevio.MotorDirection
 }
-cabRequests 	[]bool // egen greie
 
-type ElevMovement struct {
-	behaviour 	Behaviour
-	direction 	MotorDirection
-}
-type AllElevatorsState struct {
-	hallCalls 	[]bool
-	cabCalls 	[][]bool // egen elevator som første entry
-	elevState 	[]ElevState
+type CallList struct {
+	hallCalls	[]Call // 2n elementer to Call-objekt for hver etasje, en for opp og en for ned: 
+	// [Call_etg1_opp, Call_etg1_ned, Call_etg2_opp, Call_etg2_ned, ..., Call_etgn_opp, Call_etgn_ned]
+	cabCalls	[]Call // n elementer, ett Call-objekt for hver etasje
 }
 
 

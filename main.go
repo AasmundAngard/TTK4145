@@ -21,15 +21,15 @@ type ElevState struct {
 	Direction Direction
 }
 
-func (e ElevState) toCabButtonEvent() {
-	return elevio.ButtonEvent{Floor: e.Floor,Button: elevio.BT_Cab}
+func (e ElevState) toCabButtonEvent() elevio.ButtonEvent {
+	return elevio.ButtonEvent{Floor: e.Floor, Button: elevio.BT_Cab}
 }
-func (e ElevState) toHallButtonEvent() {
+func (e ElevState) toHallButtonEvent() elevio.ButtonEvent {
 	switch e.Direction {
 	case Up:
-		return elevio.ButtonEvent{Floor: e.Floor,Button: elevio.BT_HallUp}
+		return elevio.ButtonEvent{Floor: e.Floor, Button: elevio.BT_HallUp}
 	case Down:
-		return elevio.ButtonEvent{Floor: e.Floor,Button: elevio.BT_HallDown}
+		return elevio.ButtonEvent{Floor: e.Floor, Button: elevio.BT_HallDown}
 	default:
 		panic("Invalid Direction to ButtonEvent")
 	}
@@ -161,7 +161,7 @@ func main() {
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 					state.Direction = state.Direction.Opposite()
-					
+
 				case nextDirection(state, calls) == state.Direction:
 					// keep going
 				default:
@@ -185,11 +185,12 @@ func main() {
 				case state.Direction == nextDirection(state, calls):
 					elevio.SetMotorDirection(state.Direction.toMD())
 					state.Behaviour = Moving
-					completedCallC <-elevio.ButtonEvent{Floor: state.Floor, Button: state.Direction.toBtnType()}
-					completedCallC <-{Floor: state.Floor, Button: state.Direction.toBtnType()}
+					completedCallC <- state.toHallButtonEvent()
 					hCalls[state.Floor][state.Direction] = false
 				default:
 					state.Direction = state.Direction.Opposite()
+					completedCallC <- state.toHallButtonEvent()
+					hCalls[state.Floor][state.Direction] = false
 					openDoorC <- true
 
 				}
@@ -204,7 +205,7 @@ func main() {
 				// Sett retningsindikator elevio
 				openDoorC <- true
 				state.Behaviour = DoorOpen
-				
+
 			default:
 				panic("Door closed in impossible state")
 			}

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"root/config"
 	"root/elevio"
+	"root/sync"
 	"strconv"
 )
 
@@ -36,7 +37,7 @@ func (e ElevState) toHallButtonEvent() elevio.ButtonEvent {
 	}
 }
 
-func nextDirection(state ElevState, cl CallList) Direction {
+func nextDirection(hCalls sync.HallCallsBool, cCalls sync.CabCallsBool, direction elevio.MotorDirection) Direction {
 	// COMES FROM SEQUENCEASSIGNER? NEED TO FIX
 	return Down
 }
@@ -72,7 +73,7 @@ func main() {
 	// sync <- main: direction and movement
 	// sync <- main: completed calls
 
-	confirmedCallsC := make(chan CallList)          // From sync
+	confirmedCallsC := make(chan sync.CallsBool)    // From sync
 	localStateC := make(chan ElevState)             // To sync
 	completedCallC := make(chan elevio.ButtonEvent) // To sync
 
@@ -101,11 +102,11 @@ func main() {
 	// floorSensor (newFloor?) o.l.
 
 	var state ElevState
-	var calls CallList
+	var calls sync.Calls
 	// var hCalls [config.NumFloors][2]bool
 	// var cCalls [config.NumFloors]bool
-	var hCalls HallCalls
-	var cCalls CabCalls
+	var hCalls sync.HallCallsBool
+	var cCalls sync.CabCallsBool
 	hCalls, AllCabCalls := calls.toBool()
 	cCalls = AllCabCalls[0]
 

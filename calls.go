@@ -16,10 +16,10 @@ type CallList struct {
 	CabCalls [config.NumElevators][config.NumFloors]Call // n elementer, ett Call-objekt for hver etasje
 }
 
-type HallCalls [config.NumFloors][2]bool
-type CabCalls [config.NumFloors]bool
+type HallCallsBool [config.NumFloors][2]bool
+type CabCallsBool [config.NumFloors]bool
 
-func (cCalls CabCalls) empty() bool {
+func (cCalls CabCallsBool) empty() bool {
 	for _, call := range cCalls {
 		if call {
 			return false
@@ -27,7 +27,7 @@ func (cCalls CabCalls) empty() bool {
 	}
 	return true
 }
-func (hCalls HallCalls) empty() bool {
+func (hCalls HallCallsBool) empty() bool {
 	for _, floor := range hCalls {
 		for _, direction := range floor {
 			if direction {
@@ -38,9 +38,9 @@ func (hCalls HallCalls) empty() bool {
 	return true
 }
 
-func (cList CallList) toBool() (HallCalls, [config.NumElevators]CabCalls) {
-	var hCallsBool HallCalls
-	var cCallsBool [config.NumElevators]CabCalls
+func (cList CallList) toBool() (HallCallsBool, [config.NumElevators]CabCallsBool) {
+	var hCallsBool HallCallsBool
+	var cCallsBool [config.NumElevators]CabCallsBool
 	hCalls := cList.HallCalls
 	cCalls := cList.CabCalls
 	for floorIndex, floor := range hCalls {

@@ -2,6 +2,7 @@ package sync
 
 import (
 	"root/config"
+	"root/elevio"
 )
 
 // Channel overview
@@ -28,7 +29,13 @@ type BoolCallsType struct {
 	CabBoolCalls  CabBoolCallsType
 }
 
-func Sync(hardwareCalls chan CallsType, finishedCalls chan CallsType, syncedData chan BoolCallsType) {
+type CallEvent struct {
+	Floor  int
+	Button ButtonType
+	TimeStamp int64
+}
+
+func Sync(hardwareCalls chan CallEvent, finishedCalls chan CallEvent, syncedData chan BoolCallsType) {
 	var calls CallsType
 	var boolCalls BoolCallsType
 
@@ -47,18 +54,34 @@ func Sync(hardwareCalls chan CallsType, finishedCalls chan CallsType, syncedData
 	}
 }
 
-func updateCallData(current CallsType, incoming CallsType) CallsType {
-	for floor := 0; floor < config.NumFloors; floor++ {
-		for btn := 0; btn < 2; btn++ {
-			if incoming.HallCalls[floor][btn].TimeStamp.After(current.HallCalls[floor][btn].TimeStamp) {
-				current.HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
-			}
+func updateCallData(current CallsType, incoming CallEvent) CallsType {
+	floor := incoming.Floor
+	btn := incoming.Button
+
+	if btn == elevio.BT_HallUp || btn == elevio.BT_HallDown {
+		if incoming.HallCalls[floor][btn].TimeStamp.After(current.HallCalls[floor][btn].TimeStamp) {
+		current.HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
 		}
+	}
+	else if btn == elevio.BT_Cab {
 		if incoming.CabCalls[floor].TimeStamp.After(current.CabCalls[floor].TimeStamp) {
 			current.CabCalls[floor] = incoming.CabCalls[floor]
 		}
 	}
+
 	return current
+
+
+	//for floor := 0; floor < config.NumFloors; floor++ {
+	//	for btn := 0; btn < 2; btn++ {
+	//		if incoming.HallCalls[floor][btn].TimeStamp.After(current.HallCalls[floor][btn].TimeStamp) {
+	//			current.HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
+	//		}
+	//	}
+	//	if incoming.CabCalls[floor].TimeStamp.After(current.CabCalls[floor].TimeStamp) {
+	//		current.CabCalls[floor] = incoming.CabCalls[floor]
+	//	}
+	//}
 }
 
 func cabCallsToBoolCalls(c CabCallsType) CabBoolCallsType {

@@ -25,8 +25,8 @@ type Calls struct {
 type HallCallsBool [config.NumFloors][2]bool
 type CabCallsBool [config.NumFloors]bool
 type CallsBool struct {
-	HallBoolCalls HallBoolCallsType
-	CabBoolCalls  [config.NumElevators]CabBoolCallsType
+	HallCallsBool HallCallsBool
+	CabCallsBool  [config.NumElevators]CabCallsBool
 }
 
 type CallEvent struct {
@@ -35,57 +35,76 @@ type CallEvent struct {
 	TimeStamp int64
 }
 
-func Sync(hardwareCalls chan CallEvent, finishedCalls chan CallEvent, syncedData chan BoolCallsType) {
-	var calls CallsType
-	var boolCalls BoolCallsType
+const (
+	ServicedCall bool = false
+	UnservicedCall      = true
+)
+
+type networkMsg struct {
+	SenderID int
+	Calls    Calls
+	state    State
+}
+
+const ElevatorID int = 0
+
+func Sync(hardwareCalls chan CallEvent, finishedCalls chan CallEvent, networkMsg chan networkMsg, syncedData chan CallsBool) {
+	var calls Calls
+	var callsBool CallsBool
 
 	for {
 		select {
 		case incomingHardwareCalls := <-hardwareCalls:
-			calls = updateCallData(calls, incomingHardwareCalls)
+			calls = updateCall(calls, incomingHardwareCalls, UnservicedCall)
+			
 		case incomingFinishedCalls := <-finishedCalls:
-			calls = updateCallData(calls, incomingFinishedCalls)
+			calls = updateCall(calls, incomingFinishedCalls, ServicedCall)
+
+		case incomingNetworkMsg := <-networkMsg:
+			calls = mergeCalls(calls, incomingNetworkMsg.Calls)
 		}
 
-		boolCalls.HallBoolCalls = hallCallsToBoolCalls(calls.HallCalls)
-		boolCalls.CabBoolCalls = cabCallsToBoolCalls(calls.CabCalls)
+		callsBool.HallCallsBool = hallCallsToBools(calls.HallCalls)
+		callsBool.CabCallsBool = cabCallsToBools(calls.CabCalls)
 
-		syncedData <- boolCalls
+		syncedData <- callsBool
 	}
 }
 
-func updateCallData(current CallsType, incoming CallEvent) CallsType {
+func updateCall(current Calls, incoming CallEvent, callstate bool) Calls {
 	floor := incoming.Floor
 	btn := incoming.Button
+	elevator := elevatorID
 
 	if btn == elevio.BT_HallUp || btn == elevio.BT_HallDown {
-		if incoming.HallCalls[floor][btn].TimeStamp.After(current.HallCalls[floor][btn].TimeStamp) {
-		current.HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
+		if incoming.TimeStamp > current.HallCalls[floor][btn].TimeStamp {
+			current.HallCalls[floor][btn].NeedService = callstate
+			current.HallCalls[floor][btn].TimeStamp = incoming.TimeStamp
 		}
 	}
 	else if btn == elevio.BT_Cab {
-		if incoming.CabCalls[floor].TimeStamp.After(current.CabCalls[floor].TimeStamp) {
-			current.CabCalls[floor] = incoming.CabCalls[floor]
+		if incoming.TimeStamp > current.CabCalls[ElevatorID][floor].TimeStamp {
+			current.CabCalls[ElevatorID][floor].NeedService = callstate
+			current.CabCalls[ElevatorID][floor].TimeStamp = incoming.TimeStamp
 		}
 	}
 
 	return current
-
-
-	//for floor := 0; floor < config.NumFloors; floor++ {
-	//	for btn := 0; btn < 2; btn++ {
-	//		if incoming.HallCalls[floor][btn].TimeStamp.After(current.HallCalls[floor][btn].TimeStamp) {
-	//			current.HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
-	//		}
-	//	}
-	//	if incoming.CabCalls[floor].TimeStamp.After(current.CabCalls[floor].TimeStamp) {
-	//		current.CabCalls[floor] = incoming.CabCalls[floor]
-	//	}
-	//}
 }
 
-func cabCallsToBoolCalls(c CabCallsType) CabBoolCallsType {
-	var b CabBoolCallsType
+func mergeCalls(current Calls, incoming Calls) Calls {
+	for floor := 0; floor < config.NumFloors; floor++ {
+		for btn := 0; btn < 2; btn++ {
+			if incoming.HallCalls[floor][btn].TimeStamp > current.HallCalls[floor][btn].TimeStamp {
+				current.HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
+			}
+		}
+	}
+}
+
+
+func cabCallsToBools(c CabCalls) CabCallsBool {
+	var b CabCallsBool
 
 	for i, e := range c {
 		b[i] = e.NeedService
@@ -94,8 +113,8 @@ func cabCallsToBoolCalls(c CabCallsType) CabBoolCallsType {
 	return b
 }
 
-func hallCallsToBoolCalls(c HallCallsType) HallBoolCallsType {
-	var b HallBoolCallsType
+func hallCallsToBools(c HallCalls) HallCallsBool {
+	var b HallCallsBool
 
 	for i, e := range c {
 		b[i][0] = e[0].NeedService

@@ -10,9 +10,10 @@ import (
 type Behaviour int
 
 const (
-	Idle     Behaviour = 0
-	Moving             = 1
-	DoorOpen           = 2
+	Idle      Behaviour = 0
+	Moving              = 1
+	DoorOpen            = 2
+	Motorstop           = 3
 )
 
 type ElevState struct {

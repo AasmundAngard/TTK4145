@@ -24,8 +24,8 @@ type Calls struct {
 type HallCallsBool [config.NumFloors][2]bool
 type CabCallsBool [config.NumFloors]bool
 type CallsBool struct {
-	HallBoolCalls HallBoolCallsType
-	CabBoolCalls  [config.NumElevators]CabBoolCallsType
+	HallBoolCalls HallCallsBool
+	CabBoolCalls  [config.NumElevators]CabCallsBool
 }
 
 func Sync(hardwareCalls chan CallsType, finishedCalls chan CallsType, syncedData chan BoolCallsType) {

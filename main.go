@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"root/elevio"
 )
 
 type Behaviour int
@@ -20,7 +21,7 @@ type Call struct {
 type ElevState struct {
 	behaviour   Behaviour
 	floor       int
-	direction   MotorDirection
+	direction   elevio.MotorDirection
 	cabRequests []bool
 	timeStamp   time //?
 }

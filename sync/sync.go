@@ -42,15 +42,29 @@ const (
 
 type networkMsg struct {
 	SenderID int
+	TimeStamp int64
 	Calls    Calls
 	state    State
 }
 
-const ElevatorID int = 0
+type otherElevators []struct {
+	State State
+	CabCallsBool CabCallsBool
+}
 
-func Sync(hardwareCalls chan CallEvent, finishedCalls chan CallEvent, networkMsg chan networkMsg, syncedData chan CallsBool) {
+type syncedData struct {
+	callsBool CallsBool
+	otherElevators otherElevators
+
+}
+
+const ElevatorID int = 0
+const tolerance int = 100000000 // 100 ms in nanoseconds
+
+func Sync(hardwareCalls chan CallEvent, finishedCalls chan CallEvent, networkMsg chan networkMsg, syncedData chan syncedData) {
 	var calls Calls
 	var callsBool CallsBool
+	var otherElevators otherElevators
 
 	for {
 		select {
@@ -62,6 +76,8 @@ func Sync(hardwareCalls chan CallEvent, finishedCalls chan CallEvent, networkMsg
 
 		case incomingNetworkMsg := <-networkMsg:
 			calls = mergeCalls(calls, incomingNetworkMsg.Calls)
+
+
 		}
 
 		callsBool.HallCallsBool = hallCallsToBools(calls.HallCalls)

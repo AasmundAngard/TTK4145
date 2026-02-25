@@ -4,13 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"root/config"
 	"runtime"
 	"strconv"
 )
-
-// Asks for labtid:
-// - Definerer vi nederste etasje som 0 eller 1? - 0
-// - Se over oppførsel når requests_here()
 
 //encoding/json for translation for input and output .exe file
 // Use json.Marshal and json.Unmarshal
@@ -26,12 +23,38 @@ const (
 	doorOpen           = 2
 )
 
+func (b Behaviour) String() string {
+	switch b {
+	case idle:
+		return "idle"
+	case moving:
+		return "moving"
+	case doorOpen:
+		return "doorOpen"
+	default:
+		fmt.Println("Behaviour not recognized.")
+		panic(b)
+	}
+}
+
 type Direction int
 
 const (
 	Up     Direction = 0
 	Down             = 1
 )
+
+func (d Direction) String() string {
+	switch d {
+	case Up:
+		return "up"
+	case Down:
+		return "down"
+	default:
+		fmt.Println("Direction not recognized.")
+		panic(d)
+	}
+}
 
 
 type HallCallsBool [config.NumFloors][2]bool
@@ -53,11 +76,11 @@ type assignerState struct {
 	Behaviour 	string 	`json:"behaviour"`
 	Floor		int		`json:"floor"`
 	Direction 	string 	`json:"direction"`
-	CabRequests	[]bool	`json:"cabRequests"`
+	CabRequests	[config.NumFloors]bool	`json:"cabRequests"`
 }
 
 type assignerInput struct {
-	HallRequests	[config.NumFloors][2]bool					`json:"hallRequests"`
+	HallRequests	[config.NumFloors][2]bool	`json:"hallRequests"`
 	States			map[string]assignerState	`json:"states"`
 }
 
@@ -94,9 +117,9 @@ func assignCalls(allStates [config.NumElevators]ElevState, allCalls CallsBool) H
 
 	for i := 0; i < config.NumElevators; i++ {
 		tempState := assignerState {
-			Behaviour: allStates[i].behaviour,
+			Behaviour:  allStates[i].behaviour.String(),
 			Floor: allStates[i].floor,
-			Direction: allStates[i].direction,
+			Direction: allStates[i].direction.String(),
 			CabRequests: allCalls.CabCallsBool[i],
 		}
 		states[strconv.Itoa(i)] = tempState
@@ -126,7 +149,7 @@ func assignCalls(allStates [config.NumElevators]ElevState, allCalls CallsBool) H
 		panic(err)
 	}
 
-	return *jsonOutput["1"]
+	return (*jsonOutput)["1"]
 }
 
 /*

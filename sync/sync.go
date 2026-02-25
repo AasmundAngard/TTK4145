@@ -2,6 +2,7 @@ package sync
 
 import (
 	"root/config"
+	"root/elevio"
 )
 
 // Channel overview
@@ -24,8 +25,14 @@ type Calls struct {
 type HallCallsBool [config.NumFloors][2]bool
 type CabCallsBool [config.NumFloors]bool
 type CallsBool struct {
-	HallBoolCalls HallBoolCallsType
-	CabBoolCalls  [config.NumElevators]CabBoolCallsType
+	HallBoolCalls HallCallsBool
+	CabBoolCalls  [config.NumElevators]CabCallsBool
+}
+
+type CallEvent struct {
+	Floor     int
+	Button    elevio.ButtonType
+	TimeStamp int64
 }
 
 func Sync(hardwareCalls chan CallsType, finishedCalls chan CallsType, syncedData chan BoolCallsType) {

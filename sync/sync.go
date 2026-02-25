@@ -15,18 +15,18 @@ type Call struct {
 	TimeStamp   int64
 }
 
-type HallCallsType [config.NumFloors][2]Call
-type CabCallsType [config.NumFloors]Call
-type CallsType struct {
-	HallCalls HallCallsType
-	CabCalls  CabCallsType
+type HallCalls [config.NumFloors][2]Call
+type CabCalls [config.NumFloors]Call
+type Calls struct {
+	HallCalls HallCalls
+	CabCalls  CabCalls
 }
 
-type HallBoolCallsType [config.NumFloors][2]bool
-type CabBoolCallsType [config.NumFloors]bool
-type BoolCallsType struct {
+type HallCallsBool [config.NumFloors][2]bool
+type CabCallsBool [config.NumFloors]bool
+type CallsBool struct {
 	HallBoolCalls HallBoolCallsType
-	CabBoolCalls  CabBoolCallsType
+	CabBoolCalls  [config.NumElevators]CabBoolCallsType
 }
 
 type CallEvent struct {

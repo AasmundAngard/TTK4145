@@ -25,8 +25,8 @@ type Calls struct {
 type HallCallsBool [config.NumFloors][2]bool
 type CabCallsBool [config.NumFloors]bool
 type CallsBool struct {
-	HallBoolCalls HallCallsBool
-	CabBoolCalls  [config.NumElevators]CabCallsBool
+	HallCalls HallCallsBool
+	CabCalls  [config.NumElevators]CabCallsBool
 }
 
 type CallEvent struct {
@@ -35,41 +35,88 @@ type CallEvent struct {
 	TimeStamp int64
 }
 
-func Sync(hardwareCalls chan CallsType, finishedCalls chan CallsType, syncedData chan BoolCallsType) {
-	var calls CallsType
-	var boolCalls BoolCallsType
+const (
+	ServicedCall   bool = false
+	UnservicedCall      = true
+)
+
+type NetworkMsg struct {
+	SenderID  int
+	TimeStamp int64
+	Calls     Calls
+	State     State
+}
+
+type OtherElevators struct {
+	State        State
+	CabCallsBool CabCallsBool
+}
+
+type SyncedData struct {
+	CallsBool      CallsBool
+	OtherElevators []OtherElevators
+}
+
+const ElevatorID int = 0
+const tolerance int = 100000000 // 100 ms in nanoseconds
+
+func Sync(hardwareCalls <-chan CallEvent, localState <-chan State, finishedCalls <-chan CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {
+	var calls Calls
+	var callsBool CallsBool
+	var otherElevators OtherElevators
 
 	for {
 		select {
 		case incomingHardwareCalls := <-hardwareCalls:
-			calls = updateCallData(calls, incomingHardwareCalls)
+			calls = updateCall(calls, incomingHardwareCalls, UnservicedCall)
+
 		case incomingFinishedCalls := <-finishedCalls:
-			calls = updateCallData(calls, incomingFinishedCalls)
+			calls = updateCall(calls, incomingFinishedCalls, ServicedCall)
+
+		case incomingNetworkMsg := <-networkMsg:
+			calls = mergeCalls(calls, incomingNetworkMsg.Calls)
+
 		}
 
-		boolCalls.HallBoolCalls = hallCallsToBoolCalls(calls.HallCalls)
-		boolCalls.CabBoolCalls = cabCallsToBoolCalls(calls.CabCalls)
+		callsBool.HallCallsBool = hallCallsToBools(calls.HallCalls)
+		callsBool.CabCallsBool = cabCallsToBools(calls.CabCalls)
 
-		syncedData <- boolCalls
+		syncedData <- callsBool
 	}
 }
 
-func updateCallData(current CallsType, incoming CallsType) CallsType {
-	for floor := 0; floor < config.NumFloors; floor++ {
-		for btn := 0; btn < 2; btn++ {
-			if incoming.HallCalls[floor][btn].TimeStamp.After(current.HallCalls[floor][btn].TimeStamp) {
-				current.HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
-			}
+func updateCall(current Calls, incoming CallEvent, callstate bool) Calls {
+	floor := incoming.Floor
+	btn := incoming.Button
+	elevator := elevatorID
+
+	if btn == elevio.BT_HallUp || btn == elevio.BT_HallDown {
+		if incoming.TimeStamp > current.HallCalls[floor][btn].TimeStamp {
+			current.HallCalls[floor][btn].NeedService = callstate
+			current.HallCalls[floor][btn].TimeStamp = incoming.TimeStamp
 		}
-		if incoming.CabCalls[floor].TimeStamp.After(current.CabCalls[floor].TimeStamp) {
-			current.CabCalls[floor] = incoming.CabCalls[floor]
+	} else if btn == elevio.BT_Cab {
+		if incoming.TimeStamp > current.CabCalls[ElevatorID][floor].TimeStamp {
+			current.CabCalls[ElevatorID][floor].NeedService = callstate
+			current.CabCalls[ElevatorID][floor].TimeStamp = incoming.TimeStamp
 		}
 	}
+
 	return current
 }
 
-func cabCallsToBoolCalls(c CabCallsType) CabBoolCallsType {
-	var b CabBoolCallsType
+func mergeCalls(current Calls, incoming Calls) Calls {
+	for floor := 0; floor < config.NumFloors; floor++ {
+		for btn := 0; btn < 2; btn++ {
+			if incoming.HallCalls[floor][btn].TimeStamp > current.HallCalls[floor][btn].TimeStamp {
+				current.HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
+			}
+		}
+	}
+}
+
+func cabCallsToBools(c CabCalls) CabCallsBool {
+	var b CabCallsBool
 
 	for i, e := range c {
 		b[i] = e.NeedService
@@ -78,8 +125,8 @@ func cabCallsToBoolCalls(c CabCallsType) CabBoolCallsType {
 	return b
 }
 
-func hallCallsToBoolCalls(c HallCallsType) HallBoolCallsType {
-	var b HallBoolCallsType
+func hallCallsToBools(c HallCalls) HallCallsBool {
+	var b HallCallsBool
 
 	for i, e := range c {
 		b[i][0] = e[0].NeedService

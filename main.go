@@ -64,7 +64,7 @@ func main() {
 	go elevio.PollStopButton(stopButtonC)
 	go elevio.PollFloorSensor(floorSensorC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
-	go sync(localStateC, completedCallC, syncedVariablesC)
+	go sync.Sync(localStateC, completedCallC, syncedVariablesC)
 	// func Sync(hardwareCalls chan CallEvent, finishedCalls chan CallEvent, networkMsg chan networkMsg, syncedData chan syncedData) {
 
 	// Sync should not broadcast before main says so? Maybe uninitialized tag?

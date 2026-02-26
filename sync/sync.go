@@ -40,21 +40,21 @@ const (
 	UnservicedCall      = true
 )
 
-type networkMsg struct {
+type NetworkMsg struct {
 	SenderID int
 	TimeStamp int64
 	Calls    Calls
-	state    State
+	State    State
 }
 
-type otherElevators []struct {
+type OtherElevators struct {
 	State State
 	CabCallsBool CabCallsBool
 }
 
-type syncedData struct {
-	callsBool CallsBool
-	otherElevators otherElevators
+type SyncedData struct {
+	CallsBool CallsBool
+	OtherElevators []otherElevators
 
 }
 

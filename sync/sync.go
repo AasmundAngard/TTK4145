@@ -25,14 +25,24 @@ type Calls struct {
 type HallCallsBool [config.NumFloors][2]bool
 type CabCallsBool [config.NumFloors]bool
 type CallsBool struct {
-	HallBoolCalls HallCallsBool
-	CabBoolCalls  [config.NumElevators]CabCallsBool
+	HallCalls HallCallsBool
+	CabCalls  [config.NumElevators]CabCallsBool
 }
 
 type CallEvent struct {
 	Floor     int
 	Button    elevio.ButtonType
 	TimeStamp int64
+}
+
+type CompleteElevator struct {
+	State        ElevState
+	CabCallsBool CabCallsBool
+}
+
+type SyncedData struct {
+	CallsBool      CallsBool
+	OtherElevators []CompleteElevator
 }
 
 func Sync(hardwareCalls chan CallsType, finishedCalls chan CallsType, syncedData chan BoolCallsType) {

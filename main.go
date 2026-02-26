@@ -23,15 +23,15 @@ type ElevState struct {
 	Direction Direction
 }
 
-func (e ElevState) toCabButtonEvent() elevio.ButtonEvent {
-	return elevio.ButtonEvent{Floor: e.Floor, Button: elevio.BT_Cab}
+func (e ElevState) toCabCallEvent() sync.CallEvent {
+	return sync.CallEvent{Floor: e.Floor, Button: elevio.BT_Cab}
 }
-func (e ElevState) toHallButtonEvent() elevio.ButtonEvent {
+func (e ElevState) toHallCallEvent() sync.CallEvent {
 	switch e.Direction {
 	case Up:
-		return elevio.ButtonEvent{Floor: e.Floor, Button: elevio.BT_HallUp}
+		return sync.CallEvent{Floor: e.Floor, Button: elevio.BT_HallUp}
 	case Down:
-		return elevio.ButtonEvent{Floor: e.Floor, Button: elevio.BT_HallDown}
+		return sync.CallEvent{Floor: e.Floor, Button: elevio.BT_HallDown}
 	default:
 		panic("Invalid Direction to ButtonEvent")
 	}
@@ -57,16 +57,18 @@ func main() {
 	openDoorC := make(chan bool, 1)
 	doorClosedC := make(chan bool, 1)
 	doorObstructedC := make(chan bool, 1)
-	syncedVariablesC := make(chan sync.SyncedData, 16)
+	hardWareCallsC := make(chan sync.CallEvent, 16)
 	localStateC := make(chan ElevState, 16)
-	completedCallC := make(chan elevio.ButtonEvent, 16)
+	completedCallC := make(chan sync.CallEvent, 16)
+	networkMsgC := make(chan sync.NetworkMsg, 16)
+	syncedVariablesC := make(chan sync.SyncedData, 16)
+	// completedCallC := make(chan elevio.ButtonEvent, 16)
 
 	go elevio.PollStopButton(stopButtonC)
 	go elevio.PollFloorSensor(floorSensorC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
-	go sync.Sync(localStateC, completedCallC, syncedVariablesC)
-	// func Sync(hardwareCalls chan CallEvent, finishedCalls chan CallEvent, networkMsg chan networkMsg, syncedData chan syncedData) {
-
+	go sync.Sync(hardWareCallsC, localStateC, completedCallC, networkMsgC, syncedVariablesC)
+	// func Sync(hardwareCalls <-chan CallEvent, localState <-chan State, finishedCalls <-chan CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {
 	// Sync should not broadcast before main says so? Maybe uninitialized tag?
 
 	// If between floors -> floor sensor registers no floors, go down until
@@ -92,7 +94,7 @@ func main() {
 					state.Direction = nextState.Direction
 					if cCalls[state.Floor] {
 						cCalls[state.Floor] = false
-						completedCallC <- state.toCabButtonEvent()
+						completedCallC <- state.toCabCallEvent()
 					}
 					state.Behaviour = DoorOpen
 				case Moving:
@@ -171,14 +173,14 @@ func main() {
 					elevio.SetMotorDirection(state.Direction.toMD())
 
 					if hCalls[state.Floor][state.Direction] {
-						completedCallC <- state.toHallButtonEvent()
+						completedCallC <- state.toHallCallEvent()
 						hCalls[state.Floor][state.Direction] = false
 					}
 					state.Behaviour = Moving
 				case DoorOpen:
 					openDoorC <- true
 					state.Direction = state.Direction.Opposite()
-					completedCallC <- state.toHallButtonEvent()
+					completedCallC <- state.toHallCallEvent()
 					hCalls[state.Floor][state.Direction] = false
 					state.Behaviour = DoorOpen
 				case Idle:
@@ -200,7 +202,7 @@ func main() {
 				}
 			}
 			cCalls = syncedVariables.CallsBool.CabCalls[0]
-			thisState := []sync.CompleteElevator{{State: state, CabCallsBool: cCalls}}
+			thisState := []sync.OtherElevators{{State: state, CabCallsBool: cCalls}}
 			allElevStates := append(thisState, syncedVariables.OtherElevators...)
 			hCalls = sequenceAssigner.assignCalls(syncedVariables, allElevStates)
 

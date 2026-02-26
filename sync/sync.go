@@ -52,7 +52,6 @@ type otherElevators []struct {
 	CabCallsBool CabCallsBool
 }
 
-
 type syncedData struct {
 	callsBool CallsBool
 	otherElevators otherElevators

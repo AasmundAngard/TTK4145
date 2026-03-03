@@ -60,7 +60,7 @@ type SyncedData struct {
 const ElevatorID int = 0
 const tolerance int = 100000000 // 100 ms in nanoseconds
 
-func Sync(hardwareCalls <-chan CallEvent, localState <-chan State, finishedCalls <-chan CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {
+func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan State, finishedCalls <-chan CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {
 	var calls Calls
 	var callsBool CallsBool
 	var otherElevators OtherElevators

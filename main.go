@@ -23,15 +23,15 @@ type ElevState struct {
 	Direction Direction
 }
 
-func (e ElevState) toCabCallEvent() sync.CallEvent {
-	return sync.CallEvent{Floor: e.Floor, Button: elevio.BT_Cab}
+func (e ElevState) toCabCallEvent() elevio.CallEvent {
+	return elevio.CallEvent{Floor: e.Floor, Button: elevio.BT_Cab}
 }
-func (e ElevState) toHallCallEvent() sync.CallEvent {
+func (e ElevState) toHallCallEvent() elevio.CallEvent {
 	switch e.Direction {
 	case Up:
-		return sync.CallEvent{Floor: e.Floor, Button: elevio.BT_HallUp}
+		return elevio.CallEvent{Floor: e.Floor, Button: elevio.BT_HallUp}
 	case Down:
-		return sync.CallEvent{Floor: e.Floor, Button: elevio.BT_HallDown}
+		return elevio.CallEvent{Floor: e.Floor, Button: elevio.BT_HallDown}
 	default:
 		panic("Invalid Direction to ButtonEvent")
 	}
@@ -57,7 +57,7 @@ func main() {
 	openDoorC := make(chan bool, 1)
 	doorClosedC := make(chan bool, 1)
 	doorObstructedC := make(chan bool, 1)
-	hardWareCallsC := make(chan sync.CallEvent, 16)
+	hardWareCallsC := make(chan elevio.CallEvent, 16)
 	localStateC := make(chan ElevState, 16)
 	completedCallC := make(chan sync.CallEvent, 16)
 	networkMsgC := make(chan sync.NetworkMsg, 16)
@@ -66,6 +66,7 @@ func main() {
 
 	go elevio.PollStopButton(stopButtonC)
 	go elevio.PollFloorSensor(floorSensorC)
+	go elevio.PollButtons(hardWareCallsC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
 	go sync.Sync(hardWareCallsC, localStateC, completedCallC, networkMsgC, syncedVariablesC)
 	// func Sync(hardwareCalls <-chan CallEvent, localState <-chan State, finishedCalls <-chan CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {

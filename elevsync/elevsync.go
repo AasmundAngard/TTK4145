@@ -1,4 +1,4 @@
-package sync
+package elevsync
 
 import (
 	"root/config"
@@ -25,14 +25,8 @@ type Calls struct {
 type HallCallsBool [config.NumFloors][2]bool
 type CabCallsBool [config.NumFloors]bool
 type CallsBool struct {
-	HallCalls HallCallsBool
-	CabCalls  [config.NumElevators]CabCallsBool
-}
-
-type CallEvent struct {
-	Floor     int
-	Button    elevio.ButtonType
-	TimeStamp int64
+	HallCallsBool HallCallsBool
+	CabCallsBool  [config.NumElevators]CabCallsBool
 }
 
 const (
@@ -47,45 +41,67 @@ type NetworkMsg struct {
 	State     State
 }
 
-type OtherElevators struct {
+type OtherElevator struct {
 	State        State
 	CabCallsBool CabCallsBool
 }
 
+type syncOtherElevator struct {
+	State        State
+	CabCalls     CabCalls
+
+}
+
 type SyncedData struct {
 	CallsBool      CallsBool
-	OtherElevators []OtherElevators
+	OtherElevators []OtherElevator
+}
+
+type globalCalls struct {
+	SenderID int
+	Calls    Calls
 }
 
 const ElevatorID int = 0
-const tolerance int = 100000000 // 100 ms in nanoseconds
+const tolerance int = 10000000 // 10 ms in nanoseconds
 
-func Sync(hardwareCalls <-chan CallEvent, localState <-chan State, finishedCalls <-chan CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {
-	var calls Calls
-	var callsBool CallsBool
-	var otherElevators OtherElevators
+func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan State, finishedCalls <-chan elevio.CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {
+	var localCalls Calls
+	var globalCallslist []globalCalls
+
+	var confirmedCalls Calls
+
+	// store hwcall i localcalls
+	// send localcalls til network
+	// oppdater localcalls til synccalls når networkmsg kommer inn
+	// send syncedcalls til main
+
+	// hvordan skal sync vite når en localcall er synced?
+	// for hver hallcall i localcalls, sjekk om den er i de
+
+	var syncedDataToSend SyncedData
+	
 
 	for {
 		select {
-		case incomingHardwareCalls := <-hardwareCalls:
-			calls = updateCall(calls, incomingHardwareCalls, UnservicedCall)
-
-		case incomingFinishedCalls := <-finishedCalls:
-			calls = updateCall(calls, incomingFinishedCalls, ServicedCall)
+		case incomingHardwareCall := <-hardwareCalls:
+			localCalls = localCalls.updateCall(incomingHardwareCall, UnservicedCall)
+			
+		case incomingFinishedCall := <-finishedCalls:
+			localCalls = localCalls.updateCall(incomingFinishedCall, ServicedCall)
 
 		case incomingNetworkMsg := <-networkMsg:
-			calls = mergeCalls(calls, incomingNetworkMsg.Calls)
-
+			localCalls = localCalls.mergeCalls(incomingNetworkMsg.Calls)
 		}
 
-		callsBool.HallCallsBool = hallCallsToBools(calls.HallCalls)
-		callsBool.CabCallsBool = cabCallsToBools(calls.CabCalls)
+		syncedDataToSend.CallsBool.HallCallsBool = localCalls.HallCalls.toBool()
+		syncedDataToSend.CallsBool.CabCallsBool = localCalls.CabCalls.toBool()
 
-		syncedData <- callsBool
+		syncedData <- syncedDataToSend
 	}
 }
 
-func updateCall(current Calls, incoming CallEvent, callstate bool) Calls {
+func (current Calls) updateCall(incoming elevio.CallEvent, callstate bool) Calls {
 	floor := incoming.Floor
 	btn := incoming.Button
 	elevator := elevatorID
@@ -100,12 +116,14 @@ func updateCall(current Calls, incoming CallEvent, callstate bool) Calls {
 			current.CabCalls[ElevatorID][floor].NeedService = callstate
 			current.CabCalls[ElevatorID][floor].TimeStamp = incoming.TimeStamp
 		}
+	} else {
+		panic("Invalid ButtonType")
 	}
 
 	return current
 }
 
-func mergeCalls(current Calls, incoming Calls) Calls {
+func (current Calls) mergeCalls(incoming Calls) Calls {
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for btn := 0; btn < 2; btn++ {
 			if incoming.HallCalls[floor][btn].TimeStamp > current.HallCalls[floor][btn].TimeStamp {
@@ -115,7 +133,7 @@ func mergeCalls(current Calls, incoming Calls) Calls {
 	}
 }
 
-func cabCallsToBools(c CabCalls) CabCallsBool {
+func (c CabCalls) toBool() CabCallsBool {
 	var b CabCallsBool
 
 	for i, e := range c {
@@ -125,7 +143,7 @@ func cabCallsToBools(c CabCalls) CabCallsBool {
 	return b
 }
 
-func hallCallsToBools(c HallCalls) HallCallsBool {
+func (c HallCalls) toBool() HallCallsBool {
 	var b HallCallsBool
 
 	for i, e := range c {

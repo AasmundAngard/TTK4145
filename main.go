@@ -44,7 +44,7 @@ func NextState(hCalls sync.HallCallsBool, cCalls sync.CabCallsBool, state ElevSt
 func main() {
 
 	idPtr := flag.Int("id", 0, "ID of elevator, overwrite using -id=<newId>")
-	portPtr := flag.Int("fork", 20026, "Port of the elevator, overwrite using -port=<newPort>")
+	portPtr := flag.Int("fork", config.HardwarePortNumber, "Port of the elevator, overwrite using -port=<newPort>")
 	flag.Parse()
 
 	id := *idPtr
@@ -59,10 +59,11 @@ func main() {
 	doorObstructedC := make(chan bool, 1)
 	hardWareCallsC := make(chan elevio.CallEvent, 16)
 	localStateC := make(chan ElevState, 16)
-	completedCallC := make(chan sync.CallEvent, 16)
+	completedCallC := make(chan elevio.CallEvent, 16)
 	networkMsgC := make(chan sync.NetworkMsg, 16)
 	syncedVariablesC := make(chan sync.SyncedData, 16)
 	// completedCallC := make(chan elevio.ButtonEvent, 16)
+	var state sync.State
 
 	go elevio.PollStopButton(stopButtonC)
 	go elevio.PollFloorSensor(floorSensorC)

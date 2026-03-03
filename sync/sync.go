@@ -30,9 +30,9 @@ type CallsBool struct {
 }
 
 type CallEvent struct {
-	Floor  int
-	Button ButtonType
-	TimeStamp int64
+	Floor  		int
+	Button 		ButtonType
+	TimeStamp 	nt64
 }
 
 const (
@@ -41,13 +41,14 @@ const (
 )
 
 type networkMsg struct {
-	SenderID int
-	TimeStamp int64
-	Calls    Calls
-	state    State
+	SenderID 	int
+	TimeStamp 	int64
+	Calls    	Calls
+	state    	State
 }
 
 type otherElevators []struct {
+	elevatorID int
 	State State
 	CabCallsBool CabCallsBool
 }
@@ -58,36 +59,40 @@ type syncedData struct {
 
 }
 
-const ElevatorID int = 0
+const SelfID int = 0
 const tolerance int = 100000000 // 100 ms in nanoseconds
 
 func Sync(hardwareCalls chan CallEvent, finishedCalls chan CallEvent, networkMsg chan networkMsg, syncedData chan syncedData) {
 	var calls Calls
 	var callsBool CallsBool
 	var otherElevators otherElevators
+	var syncedData syncedData
 
 	for {
 		select {
 		case incomingHardwareCalls := <-hardwareCalls:
-			calls = updateCall(calls, incomingHardwareCalls, UnservicedCall)
+			calls = updateCall(calls, incomingHardwareCalls, UnservicedCall, SelfID)
 			
 		case incomingFinishedCalls := <-finishedCalls:
-			calls = updateCall(calls, incomingFinishedCalls, ServicedCall)
+			calls = updateCall(calls, incomingFinishedCalls, ServicedCall, SelfID)
 
 		case incomingNetworkMsg := <-networkMsg:
 			calls = mergeCalls(calls, incomingNetworkMsg.Calls)
-
+			
 
 		}
 
-		callsBool.HallCallsBool = hallCallsToBools(calls.HallCalls)
-		callsBool.CabCallsBool = cabCallsToBools(calls.CabCalls)
+		callsBool.HallCallsBool = calls.HallCalls.toBool()
+		callsBool.CabCallsBool = calls.CabCalls.toBool()
 
-		syncedData <- callsBool
+		syncedData <- syncedData {
+			callsBool = callsBool
+			otherElevators = 
+		}
 	}
 }
 
-func updateCall(current Calls, incoming CallEvent, callstate bool) Calls {
+func updateCall(current Calls, incoming CallEvent, callstate bool, elevatorID int) Calls {
 	floor := incoming.Floor
 	btn := incoming.Button
 	elevator := elevatorID
@@ -100,8 +105,8 @@ func updateCall(current Calls, incoming CallEvent, callstate bool) Calls {
 	}
 	else if btn == elevio.BT_Cab {
 		if incoming.TimeStamp > current.CabCalls[ElevatorID][floor].TimeStamp {
-			current.CabCalls[ElevatorID][floor].NeedService = callstate
-			current.CabCalls[ElevatorID][floor].TimeStamp = incoming.TimeStamp
+			current.CabCalls[elevatorID][floor].NeedService = callstate
+			current.CabCalls[elevatorID][floor].TimeStamp = incoming.TimeStamp
 		}
 	}
 
@@ -119,7 +124,7 @@ func mergeCalls(current Calls, incoming Calls) Calls {
 }
 
 
-func cabCallsToBools(c CabCalls) CabCallsBool {
+func (c CabCalls) toBool() CabCallsBool {
 	var b CabCallsBool
 
 	for i, e := range c {
@@ -129,7 +134,7 @@ func cabCallsToBools(c CabCalls) CabCallsBool {
 	return b
 }
 
-func hallCallsToBools(c HallCalls) HallCallsBool {
+func (c HallCalls) toBool() HallCallsBool {
 	var b HallCallsBool
 
 	for i, e := range c {

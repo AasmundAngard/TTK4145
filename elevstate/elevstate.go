@@ -2,7 +2,6 @@ package elevstate
 
 import (
 	"root/elevio"
-	"root/sync"
 )
 
 type Behaviour int
@@ -13,21 +12,34 @@ const (
 	DoorOpen           = 2
 )
 
+func (b Behaviour) String() string {
+	switch b {
+	case Idle:
+		return "idle"
+	case Moving:
+		return "moving"
+	case DoorOpen:
+		return "doorOpen"
+	default:
+		panic(b)
+	}
+}
+
 type ElevState struct {
 	Behaviour Behaviour
 	Floor     int
 	Direction Direction
 }
 
-func (e ElevState) ToCabCallEvent() sync.CallEvent {
-	return sync.CallEvent{Floor: e.Floor, Button: elevio.BT_Cab}
+func (e ElevState) ToCabCallEvent() elevio.CallEvent {
+	return elevio.CallEvent{Floor: e.Floor, Button: elevio.BT_Cab}
 }
-func (e ElevState) ToHallCallEvent() sync.CallEvent {
+func (e ElevState) ToHallCallEvent() elevio.CallEvent {
 	switch e.Direction {
 	case Up:
-		return sync.CallEvent{Floor: e.Floor, Button: elevio.BT_HallUp}
+		return elevio.CallEvent{Floor: e.Floor, Button: elevio.BT_HallUp}
 	case Down:
-		return sync.CallEvent{Floor: e.Floor, Button: elevio.BT_HallDown}
+		return elevio.CallEvent{Floor: e.Floor, Button: elevio.BT_HallDown}
 	default:
 		panic("Invalid Direction to ButtonEvent")
 	}

@@ -50,6 +50,8 @@ func main() {
 	// If between floors -> floor sensor registers no floors, go down until
 
 	var state elevstate.ElevState
+	state.Behaviour = elevstate.Moving
+	state.Direction = elevstate.Up
 	var syncedVariables elevsync.SyncedData
 	var hCalls elevsync.HallCallsBool
 	var cCalls elevsync.CabCallsBool

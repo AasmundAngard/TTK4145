@@ -108,7 +108,7 @@ func AssignCalls(allStates [config.NumElevators]elevstate.ElevState, allCalls el
 		panic(err)
 	}
 
-	assignerCmd, err := exec.Command("../"+execFile, "-i", string(jsonInput)).CombinedOutput()
+	assignerCmd, err := exec.Command("./sequenceAssigner/"+execFile, "-i", string(jsonInput)).CombinedOutput()
 	if err != nil {
 		fmt.Println("Problem with exec.Command: ", err)
 		panic(err)

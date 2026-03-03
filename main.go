@@ -17,7 +17,7 @@ func NextState(hCalls sync.HallCallsBool, cCalls sync.CabCallsBool, state elevst
 func main() {
 
 	idPtr := flag.Int("id", 0, "ID of elevator, overwrite using -id=<newId>")
-	portPtr := flag.Int("fork", config.HardwarePortNumber, "Port of the elevator, overwrite using -port=<newPort>")
+	portPtr := flag.Int("fork", config.HardwarePortNumber, "Port of the hardware server, overwrite using -port=<newPort>")
 	flag.Parse()
 
 	id := *idPtr
@@ -36,15 +36,12 @@ func main() {
 	completedCallC := make(chan elevio.CallEvent, 16)
 	networkMsgC := make(chan sync.NetworkMsg, 16)
 	syncedVariablesC := make(chan sync.SyncedData, 16)
-	// completedCallC := make(chan elevio.ButtonEvent, 16)
-	var state elevstate.ElevState
 
 	go elevio.PollStopButton(stopButtonC)
 	go elevio.PollFloorSensor(floorSensorC)
 	go elevio.PollButtons(hardWareCallsC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
 	go sync.Sync(hardWareCallsC, localStateC, completedCallC, networkMsgC, syncedVariablesC)
-	// func Sync(hardwareCalls <-chan CallEvent, localState <-chan State, finishedCalls <-chan CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {
 	// Sync should not broadcast before main says so? Maybe uninitialized tag?
 
 	// If between floors -> floor sensor registers no floors, go down until

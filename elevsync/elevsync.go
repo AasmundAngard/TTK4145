@@ -41,33 +41,39 @@ type NetworkMsg struct {
 	State     State
 }
 
-type OtherElevator struct {
+type OtherElevatorBool struct {
+	ID		   	 int
 	State        State
 	CabCallsBool CabCallsBool
 }
 
-type syncOtherElevator struct {
+type OtherElevator struct {
+	ID		   	 int
 	State        State
-	CabCalls     CabCalls
-
+	Calls		 Calls
 }
 
+
 type SyncedData struct {
-	CallsBool      CallsBool
-	OtherElevators []OtherElevator
+	CallsBool      		  CallsBool
+	OtherElevatorListBool []OtherElevatorBool
 }
 
 type globalCalls struct {
-	SenderID int
+	ID 		 int
 	Calls    Calls
 }
+
+type OtherElevatorList []OtherElevator
+
 
 const ElevatorID int = 0
 const tolerance int = 10000000 // 10 ms in nanoseconds
 
 func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan State, finishedCalls <-chan elevio.CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {
 	var localCalls Calls
-	var globalCallslist []globalCalls
+	var globalCallsList []globalCalls
+	var OtherElevatorList OtherElevatorList
 
 	var confirmedCalls Calls
 
@@ -91,15 +97,44 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan State, finish
 			localCalls = localCalls.updateCall(incomingFinishedCall, ServicedCall)
 
 		case incomingNetworkMsg := <-networkMsg:
-			sender := SenderID
-			.mergeCalls(incomingNetworkMsg.Calls)
-		}
+			OtherElevatorList = OtherElevatorList.updateOtherElevatorList(incomingNetworkMsg)
+
 
 		syncedDataToSend.CallsBool.HallCallsBool = confirmedCalls.HallCalls.toBool()
 		syncedDataToSend.CallsBool.CabCallsBool = confirmedCalls.CabCalls.toBool()
+		syncedDataToSend.OtherElevatorListBool = OtherElevatorList.toBool()
 
 		syncedData <- syncedDataToSend
 	}
+}
+
+func (OtherElevatorList OtherElevatorList) updateOtherElevatorList(incomingNetworkMsg NetworkMsg) OtherElevatorList {
+	elevatorFound := false
+
+	for i, otherElevator := range OtherElevatorList {
+		if otherElevator.ID == incomingNetworkMsg.SenderID {
+			OtherElevatorList[i].State = incomingNetworkMsg.State
+			OtherElevatorList[i].Calls = incomingNetworkMsg.Calls
+			elevatorFound = true
+			break
+		}
+	}
+
+	if !elevatorFound {
+		OtherElevatorList = append(OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, State: incomingNetworkMsg.State, CabCalls: incomingNetworkMsg.Calls.CabCalls})
+	}
+
+	return OtherElevatorList
+}
+
+func (OtherElevatorList OtherElevatorList) toBool() []OtherElevatorBool {
+	var OtherElevatorListBool []OtherElevatorBool
+
+	for _, otherElevator := range OtherElevatorList {
+		OtherElevatorListBool = append(OtherElevatorListBool, OtherElevatorBool{ID: otherElevator.ID, State: otherElevator.State, CabCallsBool: otherElevator.CabCalls.toBool()})
+	}
+
+	return OtherElevatorListBool
 }
 
 func (current Calls) updateCall(incoming elevio.CallEvent, callstate bool) Calls {

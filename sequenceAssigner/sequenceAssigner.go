@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 	"root/config"
+	"root/elevstate"
+	"root/elevsync"
 	"runtime"
 	"strconv"
 )
@@ -13,63 +15,6 @@ import (
 // Use json.Marshal and json.Unmarshal
 
 //os/exec for running the executable
-
-// TEMP (disse må en annen plass etterhvert):
-type Behaviour int
-
-const (
-	idle     Behaviour = 0
-	moving   Behaviour = 1
-	doorOpen Behaviour = 2
-)
-
-func (b Behaviour) String() string {
-	switch b {
-	case idle:
-		return "idle"
-	case moving:
-		return "moving"
-	case doorOpen:
-		return "doorOpen"
-	default:
-		fmt.Println("Behaviour not recognized.")
-		panic(b)
-	}
-}
-
-type Direction int
-
-const (
-	Up     Direction = 0
-	Down   Direction = 1
-)
-
-func (d Direction) String() string {
-	switch d {
-	case Up:
-		return "up"
-	case Down:
-		return "down"
-	default:
-		fmt.Println("Direction not recognized.")
-		panic(d)
-	}
-}
-
-
-type HallCallsBool [config.NumFloors][2]bool
-type CabCallsBool [config.NumFloors]bool
-type CallsBool struct {
-	HallCallsBool HallCallsBool
-	CabCallsBool  [config.NumElevators]CabCallsBool
-}
-
-type ElevState struct {
-	behaviour   Behaviour
-	floor       int
-	direction   Direction
-}
-
 
 // JSON input and output structure
 type assignerState struct {
@@ -84,7 +29,7 @@ type assignerInput struct {
 	States			map[string]assignerState	`json:"states"`
 }
 
-func requestsAbove(hallCalls HallCallsBool, cabCalls CabCallsBool, currentFloor int) bool {
+func requestsAbove(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	for f := currentFloor + 1; f < config.NumFloors; f++ {
 		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]){
 			return true
@@ -93,7 +38,7 @@ func requestsAbove(hallCalls HallCallsBool, cabCalls CabCallsBool, currentFloor 
 	return false
 }
 
-func requestsBelow(hallCalls HallCallsBool, cabCalls CabCallsBool, currentFloor int) bool {
+func requestsBelow(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	for f:= 0; f < currentFloor; f++ {
 		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]){
 			return true
@@ -102,14 +47,14 @@ func requestsBelow(hallCalls HallCallsBool, cabCalls CabCallsBool, currentFloor 
 	return false
 }
 
-func requestsHere(hallCalls HallCallsBool, cabCalls CabCallsBool, currentFloor int) bool {
+func requestsHere(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	if hallCalls[currentFloor][0] || hallCalls[currentFloor][1] || cabCalls[currentFloor]{
 		return true
 	}
 	return false
 }
 
-func cabAbove(cabCalls CabCallsBool, currentFloor int) bool {
+func cabAbove(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	for f := currentFloor + 1; f < config.NumFloors; f++ {
 		if cabCalls[f] {
 			return true
@@ -118,7 +63,7 @@ func cabAbove(cabCalls CabCallsBool, currentFloor int) bool {
 	return false
 }
 
-func cabBelow(cabCalls CabCallsBool, currentFloor int) bool {
+func cabBelow(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	for f:= 0; f < currentFloor; f++ {
 		if cabCalls[f] {
 			return true
@@ -128,7 +73,7 @@ func cabBelow(cabCalls CabCallsBool, currentFloor int) bool {
 }
 
 
-func assignCalls(allStates [config.NumElevators]ElevState, allCalls CallsBool) HallCallsBool {
+func assignCalls(allStates [config.NumElevators]elevstate.ElevState, allCalls elevsync.CallsBool) elevsync.HallCallsBool {
 	execFile := ""
 
 	switch runtime.GOOS {
@@ -142,9 +87,9 @@ func assignCalls(allStates [config.NumElevators]ElevState, allCalls CallsBool) H
 
 	for i := 0; i < config.NumElevators; i++ {
 		tempState := assignerState {
-			Behaviour:  allStates[i].behaviour.String(),
-			Floor: allStates[i].floor,
-			Direction: allStates[i].direction.String(),
+			Behaviour:  allStates[i].Behaviour.String(),
+			Floor: allStates[i].Floor,
+			Direction: allStates[i].Direction.String(),
 			CabRequests: allCalls.CabCallsBool[i],
 		}
 		states[strconv.Itoa(i)] = tempState
@@ -178,62 +123,62 @@ func assignCalls(allStates [config.NumElevators]ElevState, allCalls CallsBool) H
 }
 
 // Returns next state (direction and behaviour) based on call-requests and current direction and floor
-func nextState(hallCalls HallCallsBool, cabCalls CabCallsBool, currentState ElevState) ElevState {
-	var nextState ElevState
-	nextState.floor = currentState.floor
+func nextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentState elevstate.ElevState) elevstate.ElevState {
+	var nextState elevstate.ElevState
+	nextState.Floor = currentState.Floor
 	// Inspired by the elevator algorithim in the project resources
-	switch currentState.direction {
-	case Up:
+	switch currentState.Direction {
+	case elevstate.Up:
 		switch {
-		case requestsHere(hallCalls, cabCalls, currentState.floor) && !(currentState.behaviour == doorOpen):
-			nextState.behaviour = doorOpen
+		case requestsHere(hallCalls, cabCalls, currentState.Floor) && !(currentState.Behaviour == elevstate.DoorOpen):
+			nextState.Behaviour = elevstate.DoorOpen
 
 			switch {
-			case hallCalls[currentState.floor][Up]:
-				nextState.direction = Up
-			case hallCalls[currentState.floor][Down] && !cabAbove(cabCalls, currentState.floor):
-				nextState.direction = Down
+			case hallCalls[currentState.Floor][elevstate.Up]:
+				nextState.Direction = elevstate.Up
+			case hallCalls[currentState.Floor][elevstate.Down] && !cabAbove(cabCalls, currentState.Floor):
+				nextState.Direction = elevstate.Down
 			default:
-				nextState.direction = Up
+				nextState.Direction = elevstate.Up
 			} 
-		case requestsAbove(hallCalls, cabCalls, currentState.floor):
-			nextState.direction = Up // Moving upwards, call(s) above
-			nextState.behaviour = moving
-		case requestsBelow(hallCalls, cabCalls, currentState.floor):
-			nextState.direction = Down // Moving upwards, call(s) below
-			nextState.behaviour = moving
+		case requestsAbove(hallCalls, cabCalls, currentState.Floor):
+			nextState.Direction = elevstate.Up // Moving upwards, call(s) above
+			nextState.Behaviour = elevstate.Moving
+		case requestsBelow(hallCalls, cabCalls, currentState.Floor):
+			nextState.Direction = elevstate.Down // Moving upwards, call(s) below
+			nextState.Behaviour = elevstate.Moving
 		default:
-			nextState.direction = Up
-			nextState.behaviour = idle
+			nextState.Direction = elevstate.Up
+			nextState.Behaviour = elevstate.Idle
 		}
 
-	case Down:
+	case elevstate.Down:
 		switch {
-		case requestsHere(hallCalls, cabCalls, currentState.floor) && !(currentState.behaviour == doorOpen):
-			nextState.behaviour = doorOpen
+		case requestsHere(hallCalls, cabCalls, currentState.Floor) && !(currentState.Behaviour == elevstate.DoorOpen):
+			nextState.Behaviour = elevstate.DoorOpen
 
 			switch {
-			case hallCalls[currentState.floor][Down]:
-				nextState.direction = Down
-			case hallCalls[currentState.floor][Up] && !cabBelow(cabCalls, currentState.floor):
-				nextState.direction = Up
+			case hallCalls[currentState.Floor][elevstate.Down]:
+				nextState.Direction = elevstate.Down
+			case hallCalls[currentState.Floor][elevstate.Up] && !cabBelow(cabCalls, currentState.Floor):
+				nextState.Direction = elevstate.Up
 			default:
-				nextState.direction = Down
+				nextState.Direction = elevstate.Down
 			} 
-		case requestsBelow(hallCalls, cabCalls, currentState.floor):
-			nextState.direction = Down
-			nextState.behaviour = moving
-		case requestsAbove(hallCalls, cabCalls, currentState.floor):
-			nextState.direction = Up
-			nextState.behaviour = moving
+		case requestsBelow(hallCalls, cabCalls, currentState.Floor):
+			nextState.Direction = elevstate.Down
+			nextState.Behaviour = elevstate.Moving
+		case requestsAbove(hallCalls, cabCalls, currentState.Floor):
+			nextState.Direction = elevstate.Up
+			nextState.Behaviour = elevstate.Moving
 		default:
-			nextState.direction = Down
-			nextState.behaviour = idle
+			nextState.Direction = elevstate.Down
+			nextState.Behaviour = elevstate.Idle
 		}
 
 	default:
-		nextState.behaviour = idle // elevio.Direction somehow neither Stop, Up or Down, aka. funkiness afoot
-		nextState.direction = Up
+		nextState.Behaviour = elevstate.Idle // elevio.Direction somehow neither Stop, Up or Down, aka. funkiness afoot
+		nextState.Direction = elevstate.Up
 	}
 
 	return nextState

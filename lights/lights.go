@@ -3,12 +3,12 @@ package lights
 import (
 	"root/config"
 	"root/elevio"
-	"root/sync"
+	"root/elevsync"
 )
 
-func SetLights(confirmedCalls sync.CallsBool) {
-	hCalls := confirmedCalls.HallCalls
-	cCalls := confirmedCalls.CabCalls[0]
+func SetLights(confirmedCalls elevsync.CallsBool) {
+	hCalls := confirmedCalls.HallCallsBool
+	cCalls := confirmedCalls.CabCallsBool[0]
 
 	for floor := 0; floor < config.NumFloors; floor++ {
 		elevio.SetButtonLamp(elevio.BT_HallUp, floor, hCalls[floor][0])

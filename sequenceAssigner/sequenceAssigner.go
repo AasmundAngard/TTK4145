@@ -19,8 +19,8 @@ type Behaviour int
 
 const (
 	idle     Behaviour = 0
-	moving             = 1
-	doorOpen           = 2
+	moving   Behaviour = 1
+	doorOpen Behaviour = 2
 )
 
 func (b Behaviour) String() string {
@@ -41,7 +41,7 @@ type Direction int
 
 const (
 	Up     Direction = 0
-	Down             = 1
+	Down   Direction = 1
 )
 
 func (d Direction) String() string {
@@ -102,6 +102,31 @@ func requestsBelow(hallCalls HallCallsBool, cabCalls CabCallsBool, currentFloor 
 	return false
 }
 
+func requestsHere(hallCalls HallCallsBool, cabCalls CabCallsBool, currentFloor int) bool {
+	if hallCalls[currentFloor][0] || hallCalls[currentFloor][1] || cabCalls[currentFloor]{
+		return true
+	}
+	return false
+}
+
+func cabAbove(cabCalls CabCallsBool, currentFloor int) bool {
+	for f := currentFloor + 1; f < config.NumFloors; f++ {
+		if cabCalls[f] {
+			return true
+		}
+	}
+	return false
+}
+
+func cabBelow(cabCalls CabCallsBool, currentFloor int) bool {
+	for f:= 0; f < currentFloor; f++ {
+		if cabCalls[f] {
+			return true
+		}
+	}
+	return false
+}
+
 
 func assignCalls(allStates [config.NumElevators]ElevState, allCalls CallsBool) HallCallsBool {
 	execFile := ""
@@ -152,45 +177,65 @@ func assignCalls(allStates [config.NumElevators]ElevState, allCalls CallsBool) H
 	return (*jsonOutput)["1"]
 }
 
-/*
-// Returns next direction and behaviour based on call-requests and current direction and floor
+// Returns next state (direction and behaviour) based on call-requests and current direction and floor
 func nextState(hallCalls HallCallsBool, cabCalls CabCallsBool, currentState ElevState) ElevState {
-	// Decide which direction to go (up, down , stop) and behaviour (idle, moving, doorOpen)
-	// Return direction and behaviour instructions
 	var nextState ElevState
+	nextState.floor = currentState.floor
 	// Inspired by the elevator algorithim in the project resources
 	switch currentState.direction {
-	case elevio.MD_Up:
+	case Up:
 		switch {
+		case requestsHere(hallCalls, cabCalls, currentState.floor) && !(currentState.behaviour == doorOpen):
+			nextState.behaviour = doorOpen
+
+			switch {
+			case hallCalls[currentState.floor][Up]:
+				nextState.direction = Up
+			case hallCalls[currentState.floor][Down] && !cabAbove(cabCalls, currentState.floor):
+				nextState.direction = Down
+			default:
+				nextState.direction = Up
+			} 
 		case requestsAbove(hallCalls, cabCalls, currentState.floor):
-			return elevio.MD_Up // Moving upwards, call(s) above
+			nextState.direction = Up // Moving upwards, call(s) above
+			nextState.behaviour = moving
 		case requestsBelow(hallCalls, cabCalls, currentState.floor):
-			return elevio.MD_Down // Moving upwards, call(s) below
+			nextState.direction = Down // Moving upwards, call(s) below
+			nextState.behaviour = moving
 		default:
-			return elevio.MD_Stop // No requests (or some other undefined behaviour that does not crash)
+			nextState.direction = Up
+			nextState.behaviour = idle
 		}
 
-	case elevio.MD_Down:
+	case Down:
 		switch {
+		case requestsHere(hallCalls, cabCalls, currentState.floor) && !(currentState.behaviour == doorOpen):
+			nextState.behaviour = doorOpen
+
+			switch {
+			case hallCalls[currentState.floor][Down]:
+				nextState.direction = Down
+			case hallCalls[currentState.floor][Up] && !cabBelow(cabCalls, currentState.floor):
+				nextState.direction = Up
+			default:
+				nextState.direction = Down
+			} 
 		case requestsBelow(hallCalls, cabCalls, currentState.floor):
-			return elevio.MD_Down
+			nextState.direction = Down
+			nextState.behaviour = moving
 		case requestsAbove(hallCalls, cabCalls, currentState.floor):
-			return elevio.MD_Up
+			nextState.direction = Up
+			nextState.behaviour = moving
 		default:
-			return elevio.MD_Stop
+			nextState.direction = Down
+			nextState.behaviour = idle
 		}
 
-	case elevio.MD_Stop:
-		switch {
-		case requestsAbove(hallCalls, cabCalls, currentState.floor):
-			return elevio.MD_Up
-		case requestsBelow(hallCalls, cabCalls, currentState.floor):
-			return elevio.MD_Down
-		default:
-			return elevio.MD_Stop
-		}
 	default:
-		return elevio.MD_Stop // elevio.Direction somehow neither Stop, Up or Down, aka. funkiness afoot
+		nextState.behaviour = idle // elevio.Direction somehow neither Stop, Up or Down, aka. funkiness afoot
+		nextState.direction = Up
 	}
+
+	return nextState
 }
-*/
+

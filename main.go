@@ -37,7 +37,7 @@ func main() {
 	networkMsgC := make(chan sync.NetworkMsg, 16)
 	syncedVariablesC := make(chan sync.SyncedData, 16)
 	// completedCallC := make(chan elevio.ButtonEvent, 16)
-	var state sync.State
+	var state elevstate.ElevState
 
 	go elevio.PollStopButton(stopButtonC)
 	go elevio.PollFloorSensor(floorSensorC)

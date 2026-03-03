@@ -37,41 +37,41 @@ func Door(
 
 	doorState := Closed
 	obstructed := false
+	for {
 
-	select {
-	case obstructed := <-obstructedC:
+		select {
+		case obstructed := <-obstructedC:
 
-		if !obstructed && doorState == OpenWaiting {
-			elevio.SetDoorOpenLamp(false)
-			doorState = Closed
-			doorClosedC <- true
-		}
-
-		doorObstructedC <- obstructed
-
-	case <-openDoorC:
-		elevio.SetDoorOpenLamp(true)
-		timer = time.NewTimer(config.DoorOpenTime)
-		doorState = OpenCountdown
-
-		if obstructed {
-			doorObstructedC <- true
-		}
-
-	case <-timer.C:
-		switch doorState {
-		case OpenCountdown:
-			if obstructed {
-				doorState = OpenWaiting
-			} else {
+			if !obstructed && doorState == OpenWaiting {
 				elevio.SetDoorOpenLamp(false)
-				doorClosedC <- true
 				doorState = Closed
+				doorClosedC <- true
 			}
-		default:
-			panic("Timer ended in illegal state")
+
+			doorObstructedC <- obstructed
+
+		case <-openDoorC:
+			elevio.SetDoorOpenLamp(true)
+			timer = time.NewTimer(config.DoorOpenTime)
+			doorState = OpenCountdown
+
+			if obstructed {
+				doorObstructedC <- true
+			}
+
+		case <-timer.C:
+			switch doorState {
+			case OpenCountdown:
+				if obstructed {
+					doorState = OpenWaiting
+				} else {
+					elevio.SetDoorOpenLamp(false)
+					doorClosedC <- true
+					doorState = Closed
+				}
+			default:
+				panic("Timer ended in illegal state")
+			}
 		}
-
 	}
-
 }

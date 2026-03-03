@@ -2,27 +2,17 @@ package lights
 
 import (
 	"root/config"
+	"root/elevio"
+	"root/sync"
 )
 
-func setLights(confirmedCalls CallList) {
+func SetLights(confirmedCalls sync.CallsBool) {
+	hCalls := confirmedCalls.HallCalls
+	cCalls := confirmedCalls.CabCalls[0]
 
-	for f := 0; f < config.NumFloors; f++ {
-		for d := 0; d < 2; d++ {
-			if confirmedCalls.HallCalls[f][d].NeedService {
-				// Turn hall light f, d on
-				d++
-				d--
-			} else {
-				// Turn hall light f, d off
-				continue
-			}
-		}
-	}
-	for f := 0; f < config.NumFloors; f++ {
-		if confirmedCalls.CabCalls[f].NeedService {
-			// Turn cablight f on
-		} else {
-			// Turn cablight f off
-		}
+	for floor := 0; floor < config.NumFloors; floor++ {
+		elevio.SetButtonLamp(elevio.BT_HallUp, floor, hCalls[floor][0])
+		elevio.SetButtonLamp(elevio.BT_HallDown, floor, hCalls[floor][1])
+		elevio.SetButtonLamp(elevio.BT_Cab, floor, cCalls[floor])
 	}
 }

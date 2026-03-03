@@ -4,48 +4,20 @@ import (
 	"flag"
 	"root/config"
 	"root/elevio"
+	"root/elevstate"
+	"root/lights"
 	"root/sync"
 	"strconv"
 )
 
-type Behaviour int
-
-const (
-	Idle      Behaviour = 0
-	Moving              = 1
-	DoorOpen            = 2
-	Motorstop           = 3
-)
-
-type ElevState struct {
-	Behaviour Behaviour
-	Floor     int
-	Direction Direction
-}
-
-func (e ElevState) toCabButtonEvent() elevio.ButtonEvent {
-	return elevio.ButtonEvent{Floor: e.Floor, Button: elevio.BT_Cab}
-}
-func (e ElevState) toHallButtonEvent() elevio.ButtonEvent {
-	switch e.Direction {
-	case Up:
-		return elevio.ButtonEvent{Floor: e.Floor, Button: elevio.BT_HallUp}
-	case Down:
-		return elevio.ButtonEvent{Floor: e.Floor, Button: elevio.BT_HallDown}
-	default:
-		panic("Invalid Direction to ButtonEvent")
-	}
-}
-
-func nextDirection(hCalls sync.HallCallsBool, cCalls sync.CabCallsBool, direction elevio.MotorDirection) Direction {
-	// COMES FROM SEQUENCEASSIGNER? NEED TO FIX
-	return Down
+func NextState(hCalls sync.HallCallsBool, cCalls sync.CabCallsBool, state elevstate.ElevState) elevstate.ElevState {
+	return elevstate.ElevState{Behaviour: elevstate.Moving, Floor: 0, Direction: elevstate.Up}
 }
 
 func main() {
 
 	idPtr := flag.Int("id", 0, "ID of elevator, overwrite using -id=<newId>")
-	portPtr := flag.Int("fork", 20026, "Port of the elevator, overwrite using -port=<newPort>")
+	portPtr := flag.Int("fork", config.HardwarePortNumber, "Port of the elevator, overwrite using -port=<newPort>")
 	flag.Parse()
 
 	id := *idPtr
@@ -53,178 +25,169 @@ func main() {
 
 	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors) // Dette er til den lokale heisserveren man kan kjøre (alt. hardware)
 
-	// Init Hardware
-	// Lag kanaler som skal sende info fra main
-	// Init sync -> Sync leser fra network og hardware
+	stopButtonC := make(chan bool, 16)
+	floorSensorC := make(chan int, 1)
+	openDoorC := make(chan bool, 1)
+	doorClosedC := make(chan bool, 1)
+	doorObstructedC := make(chan bool, 1)
 
-	stopButton := make(chan bool, 1)
-	go elevio.PollStopButton(stopButton)
+	hardWareCallsC := make(chan elevio.CallEvent, 16)
+	localStateC := make(chan elevstate.ElevState, 16)
+	completedCallC := make(chan elevio.CallEvent, 16)
+	networkMsgC := make(chan sync.NetworkMsg, 16)
+	syncedVariablesC := make(chan sync.SyncedData, 16)
+	// completedCallC := make(chan elevio.ButtonEvent, 16)
+	var state elevstate.ElevState
 
-	floorSensor := make(chan int, 1)
-	go elevio.PollFloorSensor(floorSensor)
-
-	openDoorC := make(chan bool)
-	doorClosedC := make(chan bool)
-	doorObstructedC := make(chan bool)
+	go elevio.PollStopButton(stopButtonC)
+	go elevio.PollFloorSensor(floorSensorC)
+	go elevio.PollButtons(hardWareCallsC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
-
-	// Sync <-> main
-	// sync -> main: alle heistilstander og hall calls
-	// sync <- main: direction and movement
-	// sync <- main: completed calls
-
-	confirmedCallsC := make(chan sync.CallsBool)    // From sync
-	localStateC := make(chan ElevState)             // To sync
-	completedCallC := make(chan elevio.ButtonEvent) // To sync
-
-	go sync(confirmedCallsC, localStateC, completedCallC)
-
-	// main can poll floorsensor directly
-
+	go sync.Sync(hardWareCallsC, localStateC, completedCallC, networkMsgC, syncedVariablesC)
+	// func Sync(hardwareCalls <-chan CallEvent, localState <-chan State, finishedCalls <-chan CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {
 	// Sync should not broadcast before main says so? Maybe uninitialized tag?
 
 	// If between floors -> floor sensor registers no floors, go down until
-	// sync registers a floor and says so to main
 
-	// Read ID, num elevators and num floors from config file
-
-	// Read common hall calls and cab calls from other elevators' broadcasts
-
-	// Update own state with new info in sync
-
-	// Main starts receiving common hall calls,
-	// Main enters main loop
-
-	// Siden handling/output i systemet (fra fsm) er basert på inputet, og ikke nødvendigvis state,
-	// bør systemet implementeres som en handlings-sentrert Mealy-maskin.
-
-	// Det krever større fokus på kanaler som varsler fsm-en om handligner, som doorClosed,
-	// floorSensor (newFloor?) o.l.
-
-	var state ElevState
-	var calls sync.Calls
-	// var hCalls [config.NumFloors][2]bool
-	// var cCalls [config.NumFloors]bool
+	var state elevstate.ElevState
+	var syncedVariables sync.SyncedData
 	var hCalls sync.HallCallsBool
 	var cCalls sync.CabCallsBool
-	hCalls, AllCabCalls := calls.toBool()
-	cCalls = AllCabCalls[0]
 
 	for {
 
 		select {
-		case newFloor := <-floorSensor:
+		case newFloor := <-floorSensorC:
 			state.Floor = newFloor
 			elevio.SetFloorIndicator(state.Floor)
 			switch state.Behaviour {
-			case Moving:
-				// Dersom egne distribuerte hall call i etasjen:
-				// Stans motor
-				// Åpne dør
-				// Dersom egne cab calls i etasjen
-				// Stans motor
-				// Åpne dør
-				// Marker cab call som ferdig!
-
-				// Sequence assigner burde ta inn state og confirmedCalls, og gi hvilken retning den bør ta fra etasjen
-				switch {
-				case cCalls[state.Floor] && hCalls[state.Floor][state.Direction]:
+			case elevstate.Moving:
+				nextState := sequenceAssigner.NextState(hCalls, cCalls, state)
+				switch nextState.Behaviour {
+				case elevstate.DoorOpen:
 					elevio.SetMotorDirection(elevio.MD_Stop)
 					openDoorC <- true
-					state.Behaviour = DoorOpen
-
-					completedCallC <- state.toCabButtonEvent()
-					cCalls[state.Floor] = false
-
-				case cCalls[state.Floor] && hCalls[state.Floor][state.Direction.Opposite()]:
+					state.Direction = nextState.Direction
+					if cCalls[state.Floor] {
+						cCalls[state.Floor] = false
+						completedCallC <- state.ToCabCallEvent()
+					}
+					state.Behaviour = elevstate.DoorOpen
+				case elevstate.Moving:
+					state.Direction = nextState.Direction
+					elevio.SetMotorDirection(state.Direction.ToMD())
+					state.Behaviour = elevstate.Moving
+				case elevstate.Idle:
 					elevio.SetMotorDirection(elevio.MD_Stop)
-					openDoorC <- true
-					state.Direction = state.Direction.Opposite()
-					state.Behaviour = DoorOpen
-
-					completedCallC <- state.toCabButtonEvent()
-					cCalls[state.Floor] = false
-
-				case cCalls[state.Floor]:
-					elevio.SetMotorDirection(elevio.MD_Stop)
-					openDoorC <- true
-					state.Behaviour = DoorOpen
-
-					completedCallC <- state.toCabButtonEvent()
-					cCalls[state.Floor] = false
-
-				case hCalls[state.Floor][state.Direction]:
-					elevio.SetMotorDirection(elevio.MD_Stop)
-					openDoorC <- true
-					state.Behaviour = DoorOpen
-
-				case hCalls[state.Floor][state.Direction.Opposite()]:
-					elevio.SetMotorDirection(elevio.MD_Stop)
-					openDoorC <- true
-					state.Behaviour = DoorOpen
-					state.Direction = state.Direction.Opposite()
-
-				case nextDirection(state, calls) == state.Direction:
-					// keep going
+					state.Behaviour = elevstate.Idle
 				default:
 					elevio.SetMotorDirection(elevio.MD_Stop)
-					openDoorC <- true
-					state.Behaviour = DoorOpen
-
+					state.Behaviour = elevstate.Idle
 				}
+				// switch {
+
+				// case cCalls[state.Floor] && hCalls[state.Floor][state.Direction]:
+				// 	elevio.SetMotorDirection(elevio.MD_Stop)
+				// 	openDoorC <- true
+				// 	state.Behaviour = DoorOpen
+
+				// 	completedCallC <- state.toCabButtonEvent()
+				// 	cCalls[state.Floor] = false
+
+				// case cCalls[state.Floor] && hCalls[state.Floor][state.Direction.Opposite()]:
+				// 	elevio.SetMotorDirection(elevio.MD_Stop)
+				// 	openDoorC <- true
+				// 	state.Direction = state.Direction.Opposite()
+				// 	state.Behaviour = DoorOpen
+
+				// 	completedCallC <- state.toCabButtonEvent()
+				// 	cCalls[state.Floor] = false
+
+				// case cCalls[state.Floor]:
+				// 	elevio.SetMotorDirection(elevio.MD_Stop)
+				// 	openDoorC <- true
+				// 	state.Behaviour = DoorOpen
+
+				// 	completedCallC <- state.toCabButtonEvent()
+				// 	cCalls[state.Floor] = false
+
+				// case hCalls[state.Floor][state.Direction]:
+				// 	elevio.SetMotorDirection(elevio.MD_Stop)
+				// 	openDoorC <- true
+				// 	state.Behaviour = DoorOpen
+
+				// case hCalls[state.Floor][state.Direction.Opposite()]:
+				// 	elevio.SetMotorDirection(elevio.MD_Stop)
+				// 	openDoorC <- true
+				// 	state.Behaviour = DoorOpen
+				// 	state.Direction = state.Direction.Opposite()
+
+				// default:
+				// 	if nextDirection == state.Direction.toMD() {
+				// 		elevio.SetMotorDirection(state.Direction.toMD())
+
+				// 	} else if nextDirection == state.Direction.Opposite().toMD() {
+				// 		elevio.SetMotorDirection(state.Direction.Opposite().toMD())
+
+				// 	} else {
+				// 		elevio.SetMotorDirection(elevio.MD_Stop)
+				// 		openDoorC <- true
+				// 		state.Behaviour = DoorOpen
+				// 	}
+
+				// }
 			default:
 				panic("Impossible state")
 			}
 
 		case <-doorClosedC:
 			switch state.Behaviour {
-			case DoorOpen:
-				// Hvordan skal man bestemme retningen? Sier sequenceAssigner?
-				// Foreløpig: sequenceAssigner/nextDirection bestemmer retning
-				switch {
-				case cCalls.empty() && hCalls.empty():
-					state.Behaviour = Idle
-				case state.Direction == nextDirection(state, calls):
-					elevio.SetMotorDirection(state.Direction.toMD())
-					state.Behaviour = Moving
-					completedCallC <- state.toHallButtonEvent()
-					hCalls[state.Floor][state.Direction] = false
-				default:
-					state.Direction = state.Direction.Opposite()
-					completedCallC <- state.toHallButtonEvent()
-					hCalls[state.Floor][state.Direction] = false
+			case elevstate.DoorOpen:
+				nextState := sequenceAssigner.NextState(hCalls, cCalls, state)
+				switch nextState.Behaviour {
+				case elevstate.Moving:
+					elevio.SetMotorDirection(state.Direction.ToMD())
+
+					if hCalls[state.Floor][state.Direction] {
+						completedCallC <- state.ToHallCallEvent()
+						hCalls[state.Floor][state.Direction] = false
+					}
+					state.Behaviour = elevstate.Moving
+				case elevstate.DoorOpen:
 					openDoorC <- true
-
+					state.Direction = state.Direction.Opposite()
+					completedCallC <- state.ToHallCallEvent()
+					hCalls[state.Floor][state.Direction] = false
+					state.Behaviour = elevstate.DoorOpen
+				case elevstate.Idle:
+					state.Behaviour = elevstate.Idle
+				default:
+					state.Behaviour = elevstate.Idle
 				}
-				// Dersom sameDirection(state.Direction, assignedSequence)
-				// Sett motorretning til state.Direction
-				// Klarér hall call i samme retning
-				state.Behaviour = Moving
-
-				//Dersom IKKE sameDirection(state.Direction, assignedSequence)
-				// Åpne døra en gang til, og annonser retningsendring
-				state.Direction = state.Direction.Opposite()
-				// Sett retningsindikator elevio
-				openDoorC <- true
-				state.Behaviour = DoorOpen
-
 			default:
 				panic("Door closed in impossible state")
 			}
-		case calls = <-confirmedCallsC:
+		case syncedVariables = <-syncedVariablesC:
 
-		case <-stopButton:
-			state.Behaviour = Idle
+		drainChannel:
+			for {
+				select {
+				case syncedVariables = <-syncedVariablesC:
+				default:
+					break drainChannel
+				}
+			}
+			cCalls = syncedVariables.CallsBool.CabCalls[0]
+			thisState := []sync.OtherElevators{{State: state, CabCallsBool: cCalls}}
+			allElevStates := append(thisState, syncedVariables.OtherElevators...)
+			hCalls = sequenceAssigner.AssignCalls(syncedVariables, allElevStates)
+
+		case <-stopButtonC:
 			elevio.SetMotorDirection(elevio.MD_Stop)
+			state.Behaviour = elevstate.Idle
 		}
-
+		lights.SetLights(syncedVariables.CallsBool)
 		localStateC <- state
-
-		// Main only receives common hall calls from sync
-		// Light up hall buttons based on hall calls
-		// Light up cab call buttons based on cab calls
-		// Main calls sequenceAsigner, assigning current calls and finding direction
-
 	}
 
 }

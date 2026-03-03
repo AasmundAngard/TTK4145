@@ -19,7 +19,7 @@ type CallList struct {
 type HallCallsBool [config.NumFloors][2]bool
 type CabCallsBool [config.NumFloors]bool
 
-func (cCalls CabCallsBool) empty() bool {
+func (cCalls CabCallsBool) isEmpty() bool {
 	for _, call := range cCalls {
 		if call {
 			return false
@@ -27,7 +27,7 @@ func (cCalls CabCallsBool) empty() bool {
 	}
 	return true
 }
-func (hCalls HallCallsBool) empty() bool {
+func (hCalls HallCallsBool) isEmpty() bool {
 	for _, floor := range hCalls {
 		for _, direction := range floor {
 			if direction {

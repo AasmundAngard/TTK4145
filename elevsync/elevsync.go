@@ -1,6 +1,7 @@
 package elevsync
 
 import (
+	"fmt"
 	"root/config"
 	"root/elevio"
 	"root/elevstate"
@@ -85,9 +86,11 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.Ele
 		select {
 		case incomingHardwareCall := <-hardwareCalls:
 			localCalls = localCalls.updateCall(incomingHardwareCall, UnservicedCall)
+			fmt.Println("Received: ", incomingHardwareCall.Button, incomingHardwareCall.Floor)
 
 		case incomingFinishedCall := <-finishedCalls:
 			localCalls = localCalls.updateCall(incomingFinishedCall, ServicedCall)
+			fmt.Println("Received: ", incomingFinishedCall.Button, incomingFinishedCall.Floor)
 
 		case incomingNetworkMsg := <-networkMsg:
 			localCalls.mergeCalls(incomingNetworkMsg.Calls)
@@ -97,6 +100,7 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.Ele
 		syncedDataToSend.CallsBool.CabCallsBool[0] = localCalls.CabCalls.toBool()
 
 		syncedData <- syncedDataToSend
+		fmt.Println("Sent data from sync")
 	}
 }
 

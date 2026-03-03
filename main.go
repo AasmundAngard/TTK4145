@@ -8,7 +8,7 @@ import (
 	"root/elevstate"
 	"root/elevsync"
 	"root/lights"
-	sequenceAssigner "root/sequenceassigner"
+	"root/sequenceassigner"
 	"strconv"
 )
 
@@ -64,7 +64,7 @@ func main() {
 			elevio.SetFloorIndicator(state.Floor)
 			switch state.Behaviour {
 			case elevstate.Moving:
-				nextState := sequenceAssigner.NextState(hCalls, cCalls, state)
+				nextState := sequenceassigner.NextState(hCalls, cCalls, state)
 				switch nextState.Behaviour {
 				case elevstate.DoorOpen:
 					elevio.SetMotorDirection(elevio.MD_Stop)
@@ -145,7 +145,7 @@ func main() {
 		case <-doorClosedC:
 			switch state.Behaviour {
 			case elevstate.DoorOpen:
-				nextState := sequenceAssigner.NextState(hCalls, cCalls, state)
+				nextState := sequenceassigner.NextState(hCalls, cCalls, state)
 				switch nextState.Behaviour {
 				case elevstate.Moving:
 					elevio.SetMotorDirection(state.Direction.ToMD())
@@ -170,6 +170,7 @@ func main() {
 				panic("Door closed in impossible state")
 			}
 		case syncedVariables = <-syncedVariablesC:
+			fmt.Println("Received to main")
 
 		drainChannel:
 			for {
@@ -179,7 +180,10 @@ func main() {
 					break drainChannel
 				}
 			}
+			lights.SetLights(syncedVariables.CallsBool)
+
 			cCalls = syncedVariables.CallsBool.CabCallsBool[0]
+			fmt.Println("length cab calls: ", len(cCalls))
 
 			var allElevStates [config.NumElevators]elevstate.ElevState
 			allElevStates[0] = state
@@ -187,7 +191,11 @@ func main() {
 				allElevStates[index+1] = item.State
 
 			}
-			hCalls = sequenceAssigner.AssignCalls(allElevStates, syncedVariables.CallsBool)
+			hCalls = sequenceassigner.AssignCalls(allElevStates, syncedVariables.CallsBool)
+			fmt.Println("length hall calls: ", len(hCalls))
+			for index, _ := range hCalls {
+				fmt.Println(index, ":", hCalls[index][0], ",", hCalls[index][1])
+			}
 
 		case <-stopButtonC:
 			elevio.SetMotorDirection(elevio.MD_Stop)

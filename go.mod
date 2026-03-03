@@ -1,2 +1,3 @@
-require Driver-go v0.0.0
-replace Driver-go => ./Driver-go
+module root
+
+go 1.25.5

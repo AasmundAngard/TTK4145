@@ -1,4 +1,4 @@
-package main // Foreløpig
+package elevstate // Foreløpig
 
 import (
 	"root/elevio"
@@ -22,7 +22,7 @@ func (d Direction) Opposite() Direction {
 	}
 }
 
-func (d Direction) toMD() elevio.MotorDirection {
+func (d Direction) ToMD() elevio.MotorDirection {
 	switch d {
 	case Up:
 		return elevio.MD_Up
@@ -33,7 +33,7 @@ func (d Direction) toMD() elevio.MotorDirection {
 	}
 }
 
-func (d Direction) toBtnType() elevio.ButtonType {
+func (d Direction) ToBtnType() elevio.ButtonType {
 	switch d {
 	case Up:
 		return elevio.BT_HallUp

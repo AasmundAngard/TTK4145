@@ -2,15 +2,17 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"root/config"
 	"root/elevio"
 	"root/elevstate"
+	"root/elevsync"
 	"root/lights"
-	"root/sync"
+	sequenceAssigner "root/sequenceassigner"
 	"strconv"
 )
 
-func NextState(hCalls sync.HallCallsBool, cCalls sync.CabCallsBool, state elevstate.ElevState) elevstate.ElevState {
+func NextState(hCalls elevsync.HallCallsBool, cCalls elevsync.CabCallsBool, state elevstate.ElevState) elevstate.ElevState {
 	return elevstate.ElevState{Behaviour: elevstate.Moving, Floor: 0, Direction: elevstate.Up}
 }
 
@@ -21,6 +23,7 @@ func main() {
 	flag.Parse()
 
 	id := *idPtr
+	fmt.Println(id)
 	port := *portPtr
 
 	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors) // Dette er til den lokale heisserveren man kan kjøre (alt. hardware)
@@ -34,22 +37,22 @@ func main() {
 	hardWareCallsC := make(chan elevio.CallEvent, 16)
 	localStateC := make(chan elevstate.ElevState, 16)
 	completedCallC := make(chan elevio.CallEvent, 16)
-	networkMsgC := make(chan sync.NetworkMsg, 16)
-	syncedVariablesC := make(chan sync.SyncedData, 16)
+	networkMsgC := make(chan elevsync.NetworkMsg, 16)
+	syncedVariablesC := make(chan elevsync.SyncedData, 16)
 
 	go elevio.PollStopButton(stopButtonC)
 	go elevio.PollFloorSensor(floorSensorC)
 	go elevio.PollButtons(hardWareCallsC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
-	go sync.Sync(hardWareCallsC, localStateC, completedCallC, networkMsgC, syncedVariablesC)
+	go elevsync.Sync(hardWareCallsC, localStateC, completedCallC, networkMsgC, syncedVariablesC)
 	// Sync should not broadcast before main says so? Maybe uninitialized tag?
 
 	// If between floors -> floor sensor registers no floors, go down until
 
 	var state elevstate.ElevState
-	var syncedVariables sync.SyncedData
-	var hCalls sync.HallCallsBool
-	var cCalls sync.CabCallsBool
+	var syncedVariables elevsync.SyncedData
+	var hCalls elevsync.HallCallsBool
+	var cCalls elevsync.CabCallsBool
 
 	for {
 
@@ -174,10 +177,15 @@ func main() {
 					break drainChannel
 				}
 			}
-			cCalls = syncedVariables.CallsBool.CabCalls[0]
-			thisState := []sync.OtherElevators{{State: state, CabCallsBool: cCalls}}
-			allElevStates := append(thisState, syncedVariables.OtherElevators...)
-			hCalls = sequenceAssigner.AssignCalls(syncedVariables, allElevStates)
+			cCalls = syncedVariables.CallsBool.CabCallsBool[0]
+
+			var allElevStates [config.NumElevators]elevstate.ElevState
+			allElevStates[0] = state
+			for index, item := range syncedVariables.OtherElevators {
+				allElevStates[index+1] = item.State
+
+			}
+			hCalls = sequenceAssigner.AssignCalls(allElevStates, syncedVariables.CallsBool)
 
 		case <-stopButtonC:
 			elevio.SetMotorDirection(elevio.MD_Stop)

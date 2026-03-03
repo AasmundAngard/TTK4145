@@ -3,6 +3,7 @@ package elevsync
 import (
 	"root/config"
 	"root/elevio"
+	"root/elevstate"
 )
 
 // Channel overview
@@ -42,14 +43,13 @@ type NetworkMsg struct {
 }
 
 type OtherElevator struct {
-	State        State
+	State        elevstate.ElevState
 	CabCallsBool CabCallsBool
 }
 
 type syncOtherElevator struct {
-	State        State
-	CabCalls     CabCalls
-
+	State    State
+	CabCalls CabCalls
 }
 
 type SyncedData struct {
@@ -65,7 +65,7 @@ type globalCalls struct {
 const ElevatorID int = 0
 const tolerance int = 10000000 // 10 ms in nanoseconds
 
-func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan State, finishedCalls <-chan elevio.CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {
+func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.ElevState, finishedCalls <-chan elevio.CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {
 	var localCalls Calls
 	var globalCallslist []globalCalls
 
@@ -80,13 +80,12 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan State, finish
 	// for hver hallcall i localcalls, sjekk om den er i de
 
 	var syncedDataToSend SyncedData
-	
 
 	for {
 		select {
 		case incomingHardwareCall := <-hardwareCalls:
 			localCalls = localCalls.updateCall(incomingHardwareCall, UnservicedCall)
-			
+
 		case incomingFinishedCall := <-finishedCalls:
 			localCalls = localCalls.updateCall(incomingFinishedCall, ServicedCall)
 

@@ -1,4 +1,4 @@
-package sequenceAssigner
+package sequenceassigner
 
 import (
 	"encoding/json"

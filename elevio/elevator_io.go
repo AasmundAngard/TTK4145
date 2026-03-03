@@ -84,7 +84,7 @@ func PollButtons(receiver chan<- CallEvent) {
 			for b := ButtonType(0); b < 3; b++ {
 				v := GetButton(b, f)
 				if v != prev[f][b] && v != false {
-					receiver <- CallEvent{f, ButtonType(b), time.Now()}
+					receiver <- CallEvent{f, ButtonType(b), 0}
 				}
 				prev[f][b] = v
 			}

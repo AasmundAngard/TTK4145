@@ -39,7 +39,7 @@ type NetworkMsg struct {
 	SenderID  int
 	TimeStamp int64
 	Calls     Calls
-	State     State
+	State     elevstate.ElevState
 }
 
 type OtherElevator struct {
@@ -48,7 +48,7 @@ type OtherElevator struct {
 }
 
 type syncOtherElevator struct {
-	State    State
+	State    elevstate.ElevState
 	CabCalls CabCalls
 }
 
@@ -67,9 +67,9 @@ const tolerance int = 10000000 // 10 ms in nanoseconds
 
 func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.ElevState, finishedCalls <-chan elevio.CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {
 	var localCalls Calls
-	var globalCallslist []globalCalls
+	// var globalCallslist []globalCalls
 
-	var confirmedCalls Calls
+	// var confirmedCalls Calls
 
 	// store hwcall i localcalls
 	// send localcalls til network
@@ -90,11 +90,11 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.Ele
 			localCalls = localCalls.updateCall(incomingFinishedCall, ServicedCall)
 
 		case incomingNetworkMsg := <-networkMsg:
-			localCalls = localCalls.mergeCalls(incomingNetworkMsg.Calls)
+			localCalls.mergeCalls(incomingNetworkMsg.Calls)
 		}
 
 		syncedDataToSend.CallsBool.HallCallsBool = localCalls.HallCalls.toBool()
-		syncedDataToSend.CallsBool.CabCallsBool = localCalls.CabCalls.toBool()
+		syncedDataToSend.CallsBool.CabCallsBool[0] = localCalls.CabCalls.toBool()
 
 		syncedData <- syncedDataToSend
 	}
@@ -103,7 +103,6 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.Ele
 func (current Calls) updateCall(incoming elevio.CallEvent, callstate bool) Calls {
 	floor := incoming.Floor
 	btn := incoming.Button
-	elevator := elevatorID
 
 	if btn == elevio.BT_HallUp || btn == elevio.BT_HallDown {
 		if incoming.TimeStamp > current.HallCalls[floor][btn].TimeStamp {
@@ -111,9 +110,9 @@ func (current Calls) updateCall(incoming elevio.CallEvent, callstate bool) Calls
 			current.HallCalls[floor][btn].TimeStamp = incoming.TimeStamp
 		}
 	} else if btn == elevio.BT_Cab {
-		if incoming.TimeStamp > current.CabCalls[ElevatorID][floor].TimeStamp {
-			current.CabCalls[ElevatorID][floor].NeedService = callstate
-			current.CabCalls[ElevatorID][floor].TimeStamp = incoming.TimeStamp
+		if incoming.TimeStamp > current.CabCalls[floor].TimeStamp {
+			current.CabCalls[floor].NeedService = callstate
+			current.CabCalls[floor].TimeStamp = incoming.TimeStamp
 		}
 	} else {
 		panic("Invalid ButtonType")
@@ -122,7 +121,7 @@ func (current Calls) updateCall(incoming elevio.CallEvent, callstate bool) Calls
 	return current
 }
 
-func (current Calls) mergeCalls(incoming Calls) Calls {
+func (current Calls) mergeCalls(incoming Calls) {
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for btn := 0; btn < 2; btn++ {
 			if incoming.HallCalls[floor][btn].TimeStamp > current.HallCalls[floor][btn].TimeStamp {

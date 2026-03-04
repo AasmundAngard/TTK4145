@@ -43,3 +43,14 @@ func (d Direction) ToBtnType() elevio.ButtonType {
 		return 0
 	}
 }
+
+func (d Direction) String() string {
+	switch d {
+	case Up:
+		return "up"
+	case Down:
+		return "down"
+	default:
+		panic(d)
+	}
+}

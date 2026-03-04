@@ -6,6 +6,7 @@ import (
 	"root/elevio"
 	"root/elevstate"
 	"root/lights"
+	sequenceassigner "root/sequenceAssigner"
 	"root/sync"
 	"strconv"
 )
@@ -62,7 +63,7 @@ func main() {
 			elevio.SetFloorIndicator(state.Floor)
 			switch state.Behaviour {
 			case elevstate.Moving:
-				nextState := sequenceAssigner.NextState(hCalls, cCalls, state)
+				nextState := sequenceassigner.NextState(hCalls, cCalls, state)
 				switch nextState.Behaviour {
 				case elevstate.DoorOpen:
 					elevio.SetMotorDirection(elevio.MD_Stop)
@@ -143,7 +144,7 @@ func main() {
 		case <-doorClosedC:
 			switch state.Behaviour {
 			case elevstate.DoorOpen:
-				nextState := sequenceAssigner.NextState(hCalls, cCalls, state)
+				nextState := sequenceassigner.NextState(hCalls, cCalls, state)
 				switch nextState.Behaviour {
 				case elevstate.Moving:
 					elevio.SetMotorDirection(state.Direction.ToMD())
@@ -180,7 +181,7 @@ func main() {
 			cCalls = syncedVariables.CallsBool.CabCalls[0]
 			thisState := []sync.OtherElevators{{State: state, CabCallsBool: cCalls}}
 			allElevStates := append(thisState, syncedVariables.OtherElevators...)
-			hCalls = sequenceAssigner.AssignCalls(syncedVariables, allElevStates)
+			hCalls = sequenceassigner.AssignCalls(syncedVariables, allElevStates)
 
 		case <-stopButtonC:
 			elevio.SetMotorDirection(elevio.MD_Stop)

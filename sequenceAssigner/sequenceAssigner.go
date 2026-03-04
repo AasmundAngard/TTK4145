@@ -1,4 +1,4 @@
-package sequenceAssigner
+package sequenceassigner
 
 import (
 	"encoding/json"
@@ -18,20 +18,20 @@ import (
 
 // JSON input and output structure
 type assignerState struct {
-	Behaviour 	string 	`json:"behaviour"`
-	Floor		int		`json:"floor"`
-	Direction 	string 	`json:"direction"`
-	CabRequests	[config.NumFloors]bool	`json:"cabRequests"`
+	Behaviour   string                 `json:"behaviour"`
+	Floor       int                    `json:"floor"`
+	Direction   string                 `json:"direction"`
+	CabRequests [config.NumFloors]bool `json:"cabRequests"`
 }
 
 type assignerInput struct {
-	HallRequests	[config.NumFloors][2]bool	`json:"hallRequests"`
-	States			map[string]assignerState	`json:"states"`
+	HallRequests [config.NumFloors][2]bool `json:"hallRequests"`
+	States       map[string]assignerState  `json:"states"`
 }
 
 func requestsAbove(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	for f := currentFloor + 1; f < config.NumFloors; f++ {
-		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]){
+		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
 			return true
 		}
 	}
@@ -39,8 +39,8 @@ func requestsAbove(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsB
 }
 
 func requestsBelow(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
-	for f:= 0; f < currentFloor; f++ {
-		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]){
+	for f := 0; f < currentFloor; f++ {
+		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
 			return true
 		}
 	}
@@ -48,7 +48,7 @@ func requestsBelow(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsB
 }
 
 func requestsHere(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
-	if hallCalls[currentFloor][0] || hallCalls[currentFloor][1] || cabCalls[currentFloor]{
+	if hallCalls[currentFloor][0] || hallCalls[currentFloor][1] || cabCalls[currentFloor] {
 		return true
 	}
 	return false
@@ -64,7 +64,7 @@ func cabAbove(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 }
 
 func cabBelow(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
-	for f:= 0; f < currentFloor; f++ {
+	for f := 0; f < currentFloor; f++ {
 		if cabCalls[f] {
 			return true
 		}
@@ -72,32 +72,34 @@ func cabBelow(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	return false
 }
 
-
-func assignCalls(allStates [config.NumElevators]elevstate.ElevState, allCalls elevsync.CallsBool) elevsync.HallCallsBool {
+func AssignCalls(allStates []elevstate.ElevState, allCalls elevsync.CallsBool) elevsync.HallCallsBool {
 	execFile := ""
 
 	switch runtime.GOOS {
-	case "linux": 		execFile = "utils/hall_request_assigner"
-	case "windows":		execFile = "utils/hall_request_assigner.exe"
-	default:			panic("OS not supported.")
+	case "linux":
+		execFile = "utils/hall_request_assigner"
+	case "windows":
+		execFile = "utils/hall_request_assigner.exe"
+	default:
+		panic("OS not supported.")
 	}
 
-	hallRequests 	:= allCalls.HallCallsBool
-	states 			:= make(map[string]assignerState)
+	hallRequests := allCalls.HallCallsBool
+	states := make(map[string]assignerState)
 
-	for i := 0; i < config.NumElevators; i++ {
-		tempState := assignerState {
-			Behaviour:  allStates[i].Behaviour.String(),
-			Floor: allStates[i].Floor,
-			Direction: allStates[i].Direction.String(),
+	for i := range allStates {
+		tempState := assignerState{
+			Behaviour:   allStates[i].Behaviour.String(),
+			Floor:       allStates[i].Floor,
+			Direction:   allStates[i].Direction.String(),
 			CabRequests: allCalls.CabCallsBool[i],
 		}
 		states[strconv.Itoa(i)] = tempState
 	}
 
-	input := assignerInput {
+	input := assignerInput{
 		HallRequests: hallRequests,
-		States: states,
+		States:       states,
 	}
 
 	jsonInput, err := json.Marshal(input)
@@ -119,11 +121,11 @@ func assignCalls(allStates [config.NumElevators]elevstate.ElevState, allCalls el
 		panic(err)
 	}
 
-	return (*jsonOutput)["1"]
+	return (*jsonOutput)["0"]
 }
 
 // Returns next state (direction and behaviour) based on call-requests and current direction and floor
-func nextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentState elevstate.ElevState) elevstate.ElevState {
+func NextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentState elevstate.ElevState) elevstate.ElevState {
 	var nextState elevstate.ElevState
 	nextState.Floor = currentState.Floor
 	// Inspired by the elevator algorithim in the project resources
@@ -140,7 +142,7 @@ func nextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool,
 				nextState.Direction = elevstate.Down
 			default:
 				nextState.Direction = elevstate.Up
-			} 
+			}
 		case requestsAbove(hallCalls, cabCalls, currentState.Floor):
 			nextState.Direction = elevstate.Up // Moving upwards, call(s) above
 			nextState.Behaviour = elevstate.Moving
@@ -164,7 +166,7 @@ func nextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool,
 				nextState.Direction = elevstate.Up
 			default:
 				nextState.Direction = elevstate.Down
-			} 
+			}
 		case requestsBelow(hallCalls, cabCalls, currentState.Floor):
 			nextState.Direction = elevstate.Down
 			nextState.Behaviour = elevstate.Moving
@@ -183,4 +185,3 @@ func nextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool,
 
 	return nextState
 }
-

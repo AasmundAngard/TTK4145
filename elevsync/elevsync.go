@@ -31,6 +31,23 @@ type CallsBool struct {
 	CabCallsBool  [config.NumElevators]CabCallsBool
 }
 
+func (h HallCallsBool) HasCalls() bool {
+	for _, floor := range h {
+		if floor[0] == true || floor[1] == true {
+			return true
+		}
+	}
+	return false
+}
+func (h CabCallsBool) HasCalls() bool {
+	for _, floor := range h {
+		if floor == true {
+			return true
+		}
+	}
+	return false
+}
+
 const (
 	ServicedCall   bool = false
 	UnservicedCall      = true
@@ -86,14 +103,22 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.Ele
 		select {
 		case incomingHardwareCall := <-hardwareCalls:
 			localCalls = localCalls.updateCall(incomingHardwareCall, UnservicedCall)
-			fmt.Println("Received: ", incomingHardwareCall.Button, incomingHardwareCall.Floor)
+			fmt.Println("Received: f:", incomingHardwareCall.Floor, "b:", incomingHardwareCall.Button)
 
 		case incomingFinishedCall := <-finishedCalls:
 			localCalls = localCalls.updateCall(incomingFinishedCall, ServicedCall)
-			fmt.Println("Received: ", incomingFinishedCall.Button, incomingFinishedCall.Floor)
+			fmt.Println("Received: f:", incomingFinishedCall.Floor, "b:", incomingFinishedCall.Button)
 
 		case incomingNetworkMsg := <-networkMsg:
 			localCalls.mergeCalls(incomingNetworkMsg.Calls)
+		case <-localState:
+			break
+
+			// case <-time.After(2 * time.Second):
+			// 	fmt.Println("sync:")
+			// 	for _, item := range localCalls.HallCalls.toBool() {
+			// 		fmt.Println(item[0], item[1])
+			// 	}
 		}
 
 		syncedDataToSend.CallsBool.HallCallsBool = localCalls.HallCalls.toBool()
@@ -109,12 +134,12 @@ func (current Calls) updateCall(incoming elevio.CallEvent, callstate bool) Calls
 	btn := incoming.Button
 
 	if btn == elevio.BT_HallUp || btn == elevio.BT_HallDown {
-		if incoming.TimeStamp > current.HallCalls[floor][btn].TimeStamp {
+		if true || incoming.TimeStamp > current.HallCalls[floor][btn].TimeStamp {
 			current.HallCalls[floor][btn].NeedService = callstate
 			current.HallCalls[floor][btn].TimeStamp = incoming.TimeStamp
 		}
 	} else if btn == elevio.BT_Cab {
-		if incoming.TimeStamp > current.CabCalls[floor].TimeStamp {
+		if true || incoming.TimeStamp > current.CabCalls[floor].TimeStamp {
 			current.CabCalls[floor].NeedService = callstate
 			current.CabCalls[floor].TimeStamp = incoming.TimeStamp
 		}

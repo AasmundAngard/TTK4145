@@ -72,7 +72,7 @@ func cabBelow(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	return false
 }
 
-func AssignCalls(allStates [config.NumElevators]elevstate.ElevState, allCalls elevsync.CallsBool) elevsync.HallCallsBool {
+func AssignCalls(allStates []elevstate.ElevState, allCalls elevsync.CallsBool) elevsync.HallCallsBool {
 	execFile := ""
 
 	switch runtime.GOOS {
@@ -87,7 +87,7 @@ func AssignCalls(allStates [config.NumElevators]elevstate.ElevState, allCalls el
 	hallRequests := allCalls.HallCallsBool
 	states := make(map[string]assignerState)
 
-	for i := 0; i < config.NumElevators; i++ {
+	for i := range allStates {
 		tempState := assignerState{
 			Behaviour:   allStates[i].Behaviour.String(),
 			Floor:       allStates[i].Floor,
@@ -121,7 +121,7 @@ func AssignCalls(allStates [config.NumElevators]elevstate.ElevState, allCalls el
 		panic(err)
 	}
 
-	return (*jsonOutput)["1"]
+	return (*jsonOutput)["0"]
 }
 
 // Returns next state (direction and behaviour) based on call-requests and current direction and floor
@@ -144,9 +144,11 @@ func NextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool,
 				nextState.Direction = elevstate.Up
 			}
 		case requestsAbove(hallCalls, cabCalls, currentState.Floor):
+			fmt.Println("requestabove")
 			nextState.Direction = elevstate.Up // Moving upwards, call(s) above
 			nextState.Behaviour = elevstate.Moving
 		case requestsBelow(hallCalls, cabCalls, currentState.Floor):
+			fmt.Println("requestbelow")
 			nextState.Direction = elevstate.Down // Moving upwards, call(s) below
 			nextState.Behaviour = elevstate.Moving
 		default:

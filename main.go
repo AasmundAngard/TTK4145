@@ -13,10 +13,6 @@ import (
 	"time"
 )
 
-func NextState(hCalls elevsync.HallCallsBool, cCalls elevsync.CabCallsBool, state elevstate.ElevState) elevstate.ElevState {
-	return elevstate.ElevState{Behaviour: elevstate.Moving, Floor: 0, Direction: elevstate.Up}
-}
-
 func main() {
 
 	idPtr := flag.Int("id", 0, "ID of elevator, overwrite using -id=<newId>")
@@ -47,8 +43,6 @@ func main() {
 	go Door(openDoorC, doorClosedC, doorObstructedC)
 	go elevsync.Sync(hardWareCallsC, localStateC, completedCallC, networkMsgC, syncedVariablesC)
 	// Sync should not broadcast before main says so? Maybe uninitialized tag?
-
-	// If between floors -> floor sensor registers no floors, go down until
 
 	var syncedVariables elevsync.SyncedData
 	var hCalls elevsync.HallCallsBool

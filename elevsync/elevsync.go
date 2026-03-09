@@ -1,6 +1,7 @@
 package elevsync
 
 import (
+	"fmt"
 	"root/config"
 	"root/elevio"
 	"root/elevstate"
@@ -103,7 +104,11 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.Ele
 	for {
 		select {
 		case incomingHardwareCall := <-hardwareCalls:
+			fmt.Println("HWCall:", incomingHardwareCall.Floor, incomingHardwareCall.Button)
 			localCalls.update(incomingHardwareCall, UnservicedCall)
+			for floor := range localCalls.HallCalls {
+				fmt.Println(floor, ":", localCalls.HallCalls[floor][0], localCalls.HallCalls[floor][1])
+			}
 
 		case incomingFinishedCall := <-finishedCalls:
 			localCalls.update(incomingFinishedCall, ServicedCall)

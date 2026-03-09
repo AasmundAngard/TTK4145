@@ -30,6 +30,7 @@ func Door(
 	obstructedC := make(chan bool, 1)
 	go elevio.PollObstructionSwitch(obstructedC)
 
+	// Create dormant timer object
 	timer := time.NewTimer(0)
 	if !timer.Stop() {
 		<-timer.C

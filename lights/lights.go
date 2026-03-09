@@ -8,7 +8,7 @@ import (
 
 func SetLights(confirmedCalls elevsync.CallsBool) {
 	hCalls := confirmedCalls.HallCallsBool
-	cCalls := confirmedCalls.CabCallsBool[0]
+	cCalls := confirmedCalls.CabCallsBool
 
 	for floor := 0; floor < config.NumFloors; floor++ {
 		elevio.SetButtonLamp(elevio.BT_HallUp, floor, hCalls[floor][0])

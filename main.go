@@ -152,7 +152,8 @@ func main() {
 				}
 			}
 			// Dette bør erstattes med bedre typer
-			cCalls = syncedVariables.CallsBool.CabCallsBool[0]
+			cCalls = syncedVariables.CallsBool.CabCallsBool // CallsBool skal egt. inneholde kun egne cabCalls
+			// cCalls = syncedVariables.CallsBool.CabCallsBool[0]
 
 			var allStates []elevstate.ElevState
 
@@ -161,7 +162,7 @@ func main() {
 			for _, otherElevator := range syncedVariables.OtherElevators {
 				allStates = append(allStates, otherElevator.State)
 			}
-			hCalls = sequenceassigner.AssignCalls(allStates, syncedVariables.CallsBool)
+			hCalls = sequenceassigner.AssignCalls(allStates, syncedVariables.CallsBool.HallCallsBool)
 
 			switch state.Behaviour {
 			case elevstate.Moving:

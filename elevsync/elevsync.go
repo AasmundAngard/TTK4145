@@ -84,7 +84,7 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan State, finish
 			localCalls.mergeHallCalls(incomingNetworkMsg.Calls)
 
 		case incomingCabCallsList := <- cabCallsReceive:
-			localCalls.overwriteCabCalls(incomingCabCallsList)
+			localCalls.mergeCabCalls(incomingCabCallsList)
 
 		case ID := <- cabCallsRequest:
 			cabCallsSend <- otherElevatorList.getCabCallsfromID(ID)
@@ -192,20 +192,23 @@ func (current Calls) mergeHallCalls(incoming Calls) {
 	return
 }
 
-func (current Calls) overwriteCabCalls(cabCallList CabCallsList) { 
-	//Må endres til å ikke overwrite, men heller legge til cab calls den ikke har, oppdaterer versjonsnummer av lokale calls den allerede har til 1 mer enn de den rejected, wordy words
-	var restoredCabCalls CabCalls
+func (localCalls Calls) mergeCabCalls(incomingCabCallsLists CabCallsList) { 
+	var mergedCabCalls CabCalls{incomingCabCallsLists[0]}
 
-	for floor := 0; floor < config.NumFloors; floor++ {
-		for _, incomingCabCalls := range cabCallList {
-			if incomingCabCalls[floor].TimeStamp > restoredCabCalls[floor].TimeStamp {
-				restoredCabCallss[floor] = incomingCabCalls[floor]
+	for _, cabCalls := range incomingCabCallsLists[1:] {
+		for floor := 0; floor < config.NumFloors; floor++ {
+			if cabCalls[floor].TimeStamp > mergedCabCalls[floor].TimeStamp {
+				mergedCabCalls[floor] = cabCalls[floor]
 			}
 		}
 	}
+	
+	for floor := 0; floor < config.NumFloors; floor++ {
+		mergedCabCalls[floor].NeedService = mergedCabCalls[floor].NeedService || localCalls.CabCalls[floor].NeedService
+		mergedCabCalls[floor].TimeStamp++
+	}
 
-	current.CabCalls = restoredCabCalls
-	return
+	localCalls.CabCalls = mergedCabCalls
 }
 
 func (c CabCalls) toBool() CabCallsBool {

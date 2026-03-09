@@ -171,19 +171,7 @@ func main() {
 				[]elevsync.OtherElevatorBool{localState},
 				syncedVariables.OtherElevatorListBool...,
 			)
-			fmt.Println("Received cabCalls from sync:")
-			for floor := range cCalls {
-				fmt.Println(floor, ":", cCalls[floor])
-			}
-			fmt.Println("Received hallCalls from sync:")
-			for floor := range syncedVariables.SyncedHallCalls {
-				fmt.Println(floor, ":", syncedVariables.SyncedHallCalls[floor][0], syncedVariables.SyncedHallCalls[floor][1])
-			}
 			hCalls = sequenceassigner.AssignCalls(allStates, syncedVariables.SyncedHallCalls)
-			fmt.Println("Calculated own hallCalls")
-			for floor := range hCalls {
-				fmt.Println(floor, ":", hCalls[floor][0], hCalls[floor][1])
-			}
 			switch state.Behaviour {
 			case elevstate.Moving:
 				break

@@ -28,7 +28,7 @@ type HallCallsBool [config.NumFloors][2]bool
 type CabCallsBool [config.NumFloors]bool
 type CallsBool struct {
 	HallCallsBool HallCallsBool
-	CabCallsBool  [config.NumElevators]CabCallsBool
+	CabCallsBool  CabCallsBool
 }
 
 func (h HallCallsBool) HasCalls() bool {
@@ -122,7 +122,7 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.Ele
 		}
 
 		syncedDataToSend.CallsBool.HallCallsBool = localCalls.HallCalls.toBool()
-		syncedDataToSend.CallsBool.CabCallsBool[0] = localCalls.CabCalls.toBool()
+		syncedDataToSend.CallsBool.CabCallsBool = localCalls.CabCalls.toBool()
 
 		syncedData <- syncedDataToSend
 		fmt.Println("Sent data from sync")

@@ -150,16 +150,14 @@ func main() {
 					break drainChannel
 				}
 			}
-			cCalls = syncedVariables.CallsBool.CabCallsBool[0]
+			cCalls = syncedVariables.CallsBool.CabCallsBool
 
-			var allStates []elevstate.ElevState
-
-			allStates = append(allStates, state)
-
-			for _, otherElevator := range syncedVariables.OtherElevators {
-				allStates = append(allStates, otherElevator.State)
-			}
-			hCalls = sequenceassigner.AssignCalls(allStates, syncedVariables.CallsBool)
+			localState := elevsync.OtherElevator{State: state, CabCallsBool: cCalls}
+			allStates := append(
+				[]elevsync.OtherElevator{localState},
+				syncedVariables.OtherElevators...,
+			)
+			hCalls = sequenceassigner.AssignCalls(allStates, syncedVariables.CallsBool.HallCallsBool)
 
 			switch state.Behaviour {
 			case elevstate.Moving:

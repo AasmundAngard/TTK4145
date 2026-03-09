@@ -72,7 +72,7 @@ func cabBelow(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	return false
 }
 
-func AssignCalls(allStates []elevstate.ElevState, allCalls elevsync.CallsBool) elevsync.HallCallsBool {
+func AssignCalls(allStates []elevsync.OtherElevator, hallCalls elevsync.HallCallsBool) elevsync.HallCallsBool {
 	execFile := ""
 
 	switch runtime.GOOS {
@@ -84,15 +84,15 @@ func AssignCalls(allStates []elevstate.ElevState, allCalls elevsync.CallsBool) e
 		panic("OS not supported.")
 	}
 
-	hallRequests := allCalls.HallCallsBool
+	hallRequests := hallCalls
 	states := make(map[string]assignerState)
 
 	for i := range allStates {
 		tempState := assignerState{
-			Behaviour:   allStates[i].Behaviour.String(),
-			Floor:       allStates[i].Floor,
-			Direction:   allStates[i].Direction.String(),
-			CabRequests: allCalls.CabCallsBool[i],
+			Behaviour:   allStates[i].State.Behaviour.String(),
+			Floor:       allStates[i].State.Floor,
+			Direction:   allStates[i].State.Direction.String(),
+			CabRequests: allStates[i].CabCallsBool,
 		}
 		states[strconv.Itoa(i)] = tempState
 	}

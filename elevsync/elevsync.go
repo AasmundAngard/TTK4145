@@ -88,7 +88,8 @@ type OtherElevatorBool struct {
 }
 
 type SyncedData struct {
-	CallsBool             CallsBool
+	LocalCabCalls         CabCallsBool
+	SyncedHallCalls       HallCallsBool
 	OtherElevatorListBool []OtherElevatorBool
 }
 
@@ -128,7 +129,8 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.Ele
 }
 
 func (syncedData SyncedData) format(confirmedCalls CallsBool, OtherElevatorList OtherElevatorList) {
-	syncedData.CallsBool = confirmedCalls
+	syncedData.LocalCabCalls = confirmedCalls.CabCallsBool
+	syncedData.SyncedHallCalls = confirmedCalls.HallCallsBool
 	syncedData.OtherElevatorListBool = OtherElevatorList.toBool()
 }
 

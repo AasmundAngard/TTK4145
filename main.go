@@ -34,15 +34,28 @@ func main() {
 	hardWareCallsC := make(chan elevio.CallEvent, 16)
 	localStateC := make(chan elevstate.ElevState, 16)
 	completedCallC := make(chan elevio.CallEvent, 16)
-	networkMsgC := make(chan elevsync.NetworkMsg, 16)
+	networkMsgC := make(chan elevsync.NetworkReceiveMsg, 16)
 	syncedVariablesC := make(chan elevsync.SyncedData, 16)
+
+	// For network -> sync
+	cabCallRequestOnInitC := make(chan string, 16)
+	cabCallReceiveOnInitC := make(chan elevsync.CabCallsList, 16)
+	cabCallSendOnRequestC := make(chan elevsync.CabCalls, 16)
 
 	go elevio.PollStopButton(stopButtonC)
 	go elevio.PollFloorSensor(floorSensorC)
 	go elevio.PollButtons(hardWareCallsC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
-	go elevsync.Sync(hardWareCallsC, localStateC, completedCallC, networkMsgC, syncedVariablesC)
-	// Sync should not broadcast before main says so? Maybe uninitialized tag?
+	go elevsync.Sync(
+		hardWareCallsC,
+		localStateC,
+		completedCallC,
+		networkMsgC,
+		syncedVariablesC,
+		cabCallRequestOnInitC,
+		cabCallReceiveOnInitC,
+		cabCallSendOnRequestC,
+	)
 
 	var syncedVariables elevsync.SyncedData
 	var hCalls elevsync.HallCallsBool
@@ -152,10 +165,10 @@ func main() {
 			}
 			cCalls = syncedVariables.CallsBool.CabCallsBool
 
-			localState := elevsync.OtherElevator{State: state, CabCallsBool: cCalls}
+			localState := elevsync.OtherElevatorBool{State: state, CabCallsBool: cCalls}
 			allStates := append(
-				[]elevsync.OtherElevator{localState},
-				syncedVariables.OtherElevators...,
+				[]elevsync.OtherElevatorBool{localState},
+				syncedVariables.OtherElevatorListBool...,
 			)
 			hCalls = sequenceassigner.AssignCalls(allStates, syncedVariables.CallsBool.HallCallsBool)
 

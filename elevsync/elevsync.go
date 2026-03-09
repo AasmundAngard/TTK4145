@@ -133,7 +133,7 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.Ele
 	}
 }
 
-func (syncedData SyncedData) format(confirmedCalls CallsBool, OtherElevatorList OtherElevatorList) {
+func (syncedData *SyncedData) format(confirmedCalls CallsBool, OtherElevatorList OtherElevatorList) {
 	syncedData.LocalCabCalls = confirmedCalls.CabCallsBool
 	syncedData.SyncedHallCalls = confirmedCalls.HallCallsBool
 	syncedData.OtherElevatorListBool = OtherElevatorList.toBool()
@@ -209,19 +209,17 @@ func (current Calls) decideCommonCalls(otherElevatorList OtherElevatorList) Call
 	return confirmedCalls
 }
 
-func (current Calls) update(incoming elevio.CallEvent, callstate bool) {
+func (current *Calls) update(incoming elevio.CallEvent, callstate bool) {
 	floor := incoming.Floor
 	btn := incoming.Button
-	if btn == elevio.BT_HallUp || btn == elevio.BT_HallDown {
-		if incoming.TimeStamp > current.HallCalls[floor][btn].TimeStamp {
-			current.HallCalls[floor][btn].NeedService = callstate
-			current.HallCalls[floor][btn].TimeStamp = incoming.TimeStamp
-		}
-	} else if btn == elevio.BT_Cab {
-		if incoming.TimeStamp > current.CabCalls[floor].TimeStamp {
-			current.CabCalls[floor].NeedService = callstate
-			current.CabCalls[floor].TimeStamp = incoming.TimeStamp
-		}
+
+	if (btn == elevio.BT_HallUp || btn == elevio.BT_HallDown) && current.HallCalls[floor][btn].NeedService != callstate {
+		current.HallCalls[floor][btn].NeedService = callstate
+		current.HallCalls[floor][btn].TimeStamp++
+
+	} else if btn == elevio.BT_Cab && current.CabCalls[floor].NeedService != callstate {
+		current.CabCalls[floor].NeedService = callstate
+		current.CabCalls[floor].TimeStamp++
 
 	} else {
 		panic("Invalid ButtonType")

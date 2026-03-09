@@ -17,6 +17,7 @@ type Call struct {
 
 type HallCalls [config.NumFloors][2]Call
 type CabCalls [config.NumFloors]Call
+type CabCallsList []CabCalls
 type Calls struct {
 	HallCalls HallCalls
 	CabCalls  CabCalls
@@ -36,7 +37,6 @@ const (
 
 type NetworkReceiveMsg struct {
 	SenderID  int
-	TimeStamp int64
 	Calls     Calls
 	State     State
 }
@@ -50,7 +50,7 @@ type OtherElevator struct {
 	TimeStamp int64
 	Calls     Calls
 	State     State
-	Active    bool
+	Alive    bool
 }
 type OtherElevatorList []OtherElevator
 type OtherElevatorBool struct {
@@ -64,23 +64,11 @@ type SyncedData struct {
 	OtherElevatorListBool []OtherElevatorBool
 }
 
-const ElevatorID int = 0
-const tolerance int = 10000000 // 10 ms in nanoseconds
-
-func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan State, finishedCalls <-chan elevio.CallEvent, networkMsg <-chan NetworkReceiveMsg, syncedData chan<- SyncedData) {
+func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan State, finishedCalls <-chan elevio.CallEvent, networkMsg <-chan NetworkReceiveMsg, syncedData chan<- SyncedData, cabCallsRequest <-chan string, cabCallsReceive <-chan CabCallsList, cabCallsSend chan<- CabCalls) {
 	var localCalls Calls
 	var OtherElevatorList OtherElevatorList
 
 	var confirmedCalls Calls
-
-	// store hwcall i localcalls
-	// send localcalls til network
-	// oppdater localcalls til synccalls når networkmsg kommer inn
-	// send syncedcalls til main
-
-	// hvordan skal sync vite når en localcall er synced?
-	// for hver hallcall i localcalls, sjekk om den er i de
-
 	var syncedDataToSend SyncedData
 
 	for {
@@ -94,16 +82,41 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan State, finish
 		case incomingNetworkMsg := <-networkMsg:
 			OtherElevatorList.update(incomingNetworkMsg)
 			localCalls.mergeHallCalls(incomingNetworkMsg.Calls)
+
+		case incomingCabCallsList := <- cabCallsReceive:
+			localCalls.overwriteCabCalls(incomingCabCallsList)
+
+		case ID := <- cabCallsRequest:
+			cabCallsSend <- otherElevatorList.getCabCallsfromID(ID)
+			continue
 		}
 
 		confirmedCalls = localCalls.confirm(otherElevatorList)
 
-		syncedDataToSend.CallsBool.HallCallsBool = confirmedCalls.HallCalls.toBool()
-		syncedDataToSend.CallsBool.CabCallsBool = confirmedCalls.CabCalls.toBool()
-		syncedDataToSend.OtherElevatorListBool = OtherElevatorList.toBool()
+		syncedDataToSend.format(confirmedCalls, OtherElevatorList)
 
 		syncedData <- syncedDataToSend
 	}
+}
+
+func (syncedData SyncedData) format(confirmedCalls Calls, OtherElevatorList OtherElevatorList) {
+	syncedData.CallsBool.HallCallsBool = confirmedCalls.HallCalls.toBool()
+	syncedData.CallsBool.CabCallsBool = confirmedCalls.CabCalls.toBool()
+	syncedData.OtherElevatorListBool = OtherElevatorList.toBool()
+
+	return
+}
+
+func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID int) CabCalls {} {
+	var cabCalls CabCalls
+
+	for _, otherElevator := range otherElevatorList {
+		if otherElevator.ID == ID {
+			return otherElevator.CabCalls
+		}
+	}
+	panic("ID not found in OtherElevatorList when fetching cabcalls")
+	return
 }
 
 func (OtherElevatorList OtherElevatorList) update(incomingNetworkMsg NetworkReceiveMsg) {
@@ -168,7 +181,7 @@ func (current Calls) update(incoming elevio.CallEvent, callstate bool) {
 	return
 }
 
-func (current Calls) mergeHallCalls(incoming Calls) Calls {
+func (current Calls) mergeHallCalls(incoming Calls) {
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for btn := 0; btn < 2; btn++ {
 			if incoming.HallCalls[floor][btn].TimeStamp > current.HallCalls[floor][btn].TimeStamp {
@@ -176,6 +189,22 @@ func (current Calls) mergeHallCalls(incoming Calls) Calls {
 			}
 		}
 	}
+	return
+}
+
+func (current Calls) overwriteCabCalls(cabCallList CabCallsList) { 
+	//Må endres til å ikke overwrite, men heller legge til cab calls den ikke har, oppdaterer versjonsnummer av lokale calls den allerede har til 1 mer enn de den rejected, wordy words
+	var restoredCabCalls CabCalls
+
+	for floor := 0; floor < config.NumFloors; floor++ {
+		for _, incomingCabCalls := range cabCallList {
+			if incomingCabCalls[floor].TimeStamp > restoredCabCalls[floor].TimeStamp {
+				restoredCabCallss[floor] = incomingCabCalls[floor]
+			}
+		}
+	}
+
+	current.CabCalls = restoredCabCalls
 	return
 }
 

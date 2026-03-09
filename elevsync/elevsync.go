@@ -208,22 +208,36 @@ func (current Calls) decideCommonCalls(otherElevatorList OtherElevatorList) Call
 func (current *Calls) update(incoming elevio.CallEvent, callstate bool) {
 	floor := incoming.Floor
 	btn := incoming.Button
-
-	if btn == elevio.BT_HallUp || btn == elevio.BT_HallDown {
+	switch btn {
+	case elevio.BT_HallUp, elevio.BT_HallDown:
 		if current.HallCalls[floor][btn].NeedService != callstate {
 			current.HallCalls[floor][btn].NeedService = callstate
 			current.HallCalls[floor][btn].TimeStamp++
 		}
-
-	} else if btn == elevio.BT_Cab {
+	case elevio.BT_Cab:
 		if current.CabCalls[floor].NeedService != callstate {
 			current.CabCalls[floor].NeedService = callstate
 			current.CabCalls[floor].TimeStamp++
 		}
-
-	} else {
+	default:
 		panic("Invalid ButtonType " + strconv.Itoa(int(btn)))
 	}
+
+	// if btn == elevio.BT_HallUp || btn == elevio.BT_HallDown {
+	// 	if current.HallCalls[floor][btn].NeedService != callstate {
+	// 		current.HallCalls[floor][btn].NeedService = callstate
+	// 		current.HallCalls[floor][btn].TimeStamp++
+	// 	}
+
+	// } else if btn == elevio.BT_Cab {
+	// 	if current.CabCalls[floor].NeedService != callstate {
+	// 		current.CabCalls[floor].NeedService = callstate
+	// 		current.CabCalls[floor].TimeStamp++
+	// 	}
+
+	// } else {
+	// 	panic("Invalid ButtonType " + strconv.Itoa(int(btn)))
+	// }
 
 }
 

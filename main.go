@@ -53,6 +53,7 @@ func main() {
 	state.Behaviour = elevstate.Idle
 	state.Direction = elevstate.Down
 
+	// Init
 	floor := elevio.GetFloor()
 	fmt.Println("startfloor:", floor)
 	if floor != -1 {
@@ -63,7 +64,7 @@ func main() {
 		state.Floor = <-floorSensorC
 		elevio.SetMotorDirection(elevio.MD_Stop)
 	}
-	var i int = 0
+	var i int = 0 // Debugging
 	prevState = state
 	prevState.Direction = state.Direction.Opposite()
 
@@ -150,6 +151,7 @@ func main() {
 					break drainChannel
 				}
 			}
+			// Dette bør erstattes med bedre typer
 			cCalls = syncedVariables.CallsBool.CabCallsBool[0]
 
 			var allStates []elevstate.ElevState

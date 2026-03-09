@@ -145,14 +145,14 @@ func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID string) CabCalls
 	return cabCalls
 }
 
-func (OtherElevatorList OtherElevatorList) update(incomingNetworkMsg NetworkReceiveMsg) {
+func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkReceiveMsg) {
 	elevatorFound := false
 
-	for i, otherElevator := range OtherElevatorList {
+	for i, otherElevator := range *OtherElevatorList {
 		if otherElevator.ID == incomingNetworkMsg.SenderID {
-			if OtherElevatorList[i].TimeStamp < incomingNetworkMsg.TimeStamp {
-				OtherElevatorList[i].State = incomingNetworkMsg.State
-				OtherElevatorList[i].Calls = incomingNetworkMsg.Calls
+			if otherElevator.TimeStamp < incomingNetworkMsg.TimeStamp {
+				(*OtherElevatorList)[i].State = incomingNetworkMsg.State
+				(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
 			}
 			elevatorFound = true
 			break
@@ -160,7 +160,7 @@ func (OtherElevatorList OtherElevatorList) update(incomingNetworkMsg NetworkRece
 	}
 
 	if !elevatorFound {
-		OtherElevatorList = append(OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
+		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
 	}
 
 }
@@ -222,7 +222,7 @@ func (current *Calls) update(incoming elevio.CallEvent, callstate bool) {
 
 }
 
-func (current Calls) mergeHallCalls(incoming Calls) {
+func (current *Calls) mergeHallCalls(incoming Calls) {
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for btn := 0; btn < 2; btn++ {
 			if incoming.HallCalls[floor][btn].TimeStamp > current.HallCalls[floor][btn].TimeStamp {
@@ -232,7 +232,7 @@ func (current Calls) mergeHallCalls(incoming Calls) {
 	}
 }
 
-func (localCalls Calls) mergeCabCalls(incomingCabCallsLists CabCallsList) {
+func (localCalls *Calls) mergeCabCalls(incomingCabCallsLists CabCallsList) {
 	mergedCabCalls := newCabCalls()
 
 	for _, cabCalls := range incomingCabCallsLists {

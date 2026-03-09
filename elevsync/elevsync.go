@@ -4,6 +4,7 @@ import (
 	"root/config"
 	"root/elevio"
 	"root/elevstate"
+	"strconv"
 )
 
 // Channel overview
@@ -145,14 +146,14 @@ func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID string) CabCalls
 	return cabCalls
 }
 
-func (OtherElevatorList OtherElevatorList) update(incomingNetworkMsg NetworkReceiveMsg) {
+func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkReceiveMsg) {
 	elevatorFound := false
 
-	for i, otherElevator := range OtherElevatorList {
+	for i, otherElevator := range *OtherElevatorList {
 		if otherElevator.ID == incomingNetworkMsg.SenderID {
-			if OtherElevatorList[i].TimeStamp < incomingNetworkMsg.TimeStamp {
-				OtherElevatorList[i].State = incomingNetworkMsg.State
-				OtherElevatorList[i].Calls = incomingNetworkMsg.Calls
+			if otherElevator.TimeStamp < incomingNetworkMsg.TimeStamp {
+				(*OtherElevatorList)[i].State = incomingNetworkMsg.State
+				(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
 			}
 			elevatorFound = true
 			break
@@ -160,7 +161,7 @@ func (OtherElevatorList OtherElevatorList) update(incomingNetworkMsg NetworkRece
 	}
 
 	if !elevatorFound {
-		OtherElevatorList = append(OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
+		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
 	}
 
 }
@@ -207,22 +208,40 @@ func (current Calls) decideCommonCalls(otherElevatorList OtherElevatorList) Call
 func (current *Calls) update(incoming elevio.CallEvent, callstate bool) {
 	floor := incoming.Floor
 	btn := incoming.Button
-
-	if (btn == elevio.BT_HallUp || btn == elevio.BT_HallDown) && current.HallCalls[floor][btn].NeedService != callstate {
-		current.HallCalls[floor][btn].NeedService = callstate
-		current.HallCalls[floor][btn].TimeStamp++
-
-	} else if btn == elevio.BT_Cab && current.CabCalls[floor].NeedService != callstate {
-		current.CabCalls[floor].NeedService = callstate
-		current.CabCalls[floor].TimeStamp++
-
-	} else {
-		panic("Invalid ButtonType")
+	switch btn {
+	case elevio.BT_HallUp, elevio.BT_HallDown:
+		if current.HallCalls[floor][btn].NeedService != callstate {
+			current.HallCalls[floor][btn].NeedService = callstate
+			current.HallCalls[floor][btn].TimeStamp++
+		}
+	case elevio.BT_Cab:
+		if current.CabCalls[floor].NeedService != callstate {
+			current.CabCalls[floor].NeedService = callstate
+			current.CabCalls[floor].TimeStamp++
+		}
+	default:
+		panic("Invalid ButtonType " + strconv.Itoa(int(btn)))
 	}
+
+	// if btn == elevio.BT_HallUp || btn == elevio.BT_HallDown {
+	// 	if current.HallCalls[floor][btn].NeedService != callstate {
+	// 		current.HallCalls[floor][btn].NeedService = callstate
+	// 		current.HallCalls[floor][btn].TimeStamp++
+	// 	}
+
+	// } else if btn == elevio.BT_Cab {
+	// 	if current.CabCalls[floor].NeedService != callstate {
+	// 		current.CabCalls[floor].NeedService = callstate
+	// 		current.CabCalls[floor].TimeStamp++
+	// 	}
+
+	// } else {
+	// 	panic("Invalid ButtonType " + strconv.Itoa(int(btn)))
+	// }
 
 }
 
-func (current Calls) mergeHallCalls(incoming Calls) {
+func (current *Calls) mergeHallCalls(incoming Calls) {
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for btn := 0; btn < 2; btn++ {
 			if incoming.HallCalls[floor][btn].TimeStamp > current.HallCalls[floor][btn].TimeStamp {
@@ -232,7 +251,7 @@ func (current Calls) mergeHallCalls(incoming Calls) {
 	}
 }
 
-func (localCalls Calls) mergeCabCalls(incomingCabCallsLists CabCallsList) {
+func (localCalls *Calls) mergeCabCalls(incomingCabCallsLists CabCallsList) {
 	mergedCabCalls := newCabCalls()
 
 	for _, cabCalls := range incomingCabCallsLists {

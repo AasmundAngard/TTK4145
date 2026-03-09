@@ -68,7 +68,7 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan State, finish
 	var localCalls Calls
 	var OtherElevatorList OtherElevatorList
 
-	var confirmedCalls Calls
+	var confirmedCalls CallsBool
 	var syncedDataToSend SyncedData
 
 	for {
@@ -91,7 +91,7 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan State, finish
 			continue
 		}
 
-		confirmedCalls = localCalls.confirm(otherElevatorList)
+		confirmedCalls = localCalls.decideCommonCalls(otherElevatorList)
 
 		syncedDataToSend.format(confirmedCalls, OtherElevatorList)
 
@@ -99,9 +99,8 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan State, finish
 	}
 }
 
-func (syncedData SyncedData) format(confirmedCalls Calls, OtherElevatorList OtherElevatorList) {
-	syncedData.CallsBool.HallCallsBool = confirmedCalls.HallCalls.toBool()
-	syncedData.CallsBool.CabCallsBool = confirmedCalls.CabCalls.toBool()
+func (syncedData SyncedData) format(confirmedCalls CabCalls, OtherElevatorList OtherElevatorList) {
+	syncedData.CallsBool = confirmedCalls
 	syncedData.OtherElevatorListBool = OtherElevatorList.toBool()
 
 	return
@@ -150,19 +149,40 @@ func (OtherElevatorList OtherElevatorList) toBool() []OtherElevatorBool {
 	return OtherElevatorListBool
 }
 
-func (current Calls) confirm(otherElevatorList OtherElevatorList) Calls {
-	var confirmedCalls Calls
+func (current Calls) decideCommonCalls(otherElevatorList OtherElevatorList) {
+	var confirmedCalls CallsBool
+	confirmedCalls.HallCallsBool = current.HallCalls.toBool()
+	confirmedCalls.CabCallsBool = current.CabCalls.toBool()
 
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for btn := 0; btn < 2; btn++ {
-			for 
+			if current.HallCalls[floor][btn] == false {
+				continue
+			}
+
+			confirmed := true
+			for _, otherElevator := range otherElevatorList {
+				if otherElevator.Calls.HallCalls[floor][btn].NeedService == false || otherElevator.Calls.HallCalls[floor][btn].TimeStamp != current.HallCalls[floor][btn].TimeStamp {
+					confirmed = false
+					confirmedCalls.HallCallsBool[floor][btn] = false
+					break
+				}
+			}
+
+			if confirmed{
+				confirmedCalls.HallCallsBool[floor][btn] = true
+			}
+		}
+	}
+
+	return confirmedCalls
 }
 
 func (current Calls) update(incoming elevio.CallEvent, callstate bool) {
 	floor := incoming.Floor
 	btn := incoming.Button
 	elevator := elevatorID
-
+l    
 	if btn == elevio.BT_HallUp || btn == elevio.BT_HallDown {
 		if incoming.TimeStamp > current.HallCalls[floor][btn].TimeStamp {
 			current.HallCalls[floor][btn].NeedService = callstate

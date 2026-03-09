@@ -35,6 +35,12 @@ type ButtonEvent struct {
 	Button ButtonType
 }
 
+type CallEvent struct {
+	Floor     int
+	Button    ButtonType
+	TimeStamp int64
+}
+
 func Init(addr string, numFloors int) {
 	if _initialized {
 		fmt.Println("Driver already initialized!")
@@ -70,7 +76,8 @@ func SetStopLamp(value bool) {
 	write([4]byte{5, toByte(value), 0, 0})
 }
 
-func PollButtons(receiver chan<- ButtonEvent) {
+func PollButtons(receiver chan<- CallEvent) {
+	var i int64 = 0
 	prev := make([][3]bool, _numFloors)
 	for {
 		time.Sleep(_pollRate)
@@ -78,7 +85,8 @@ func PollButtons(receiver chan<- ButtonEvent) {
 			for b := ButtonType(0); b < 3; b++ {
 				v := GetButton(b, f)
 				if v != prev[f][b] && v != false {
-					receiver <- ButtonEvent{f, ButtonType(b)}
+					i++
+					receiver <- CallEvent{f, ButtonType(b), i}
 				}
 				prev[f][b] = v
 			}

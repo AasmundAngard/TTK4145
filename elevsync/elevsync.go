@@ -29,7 +29,22 @@ type CallsBool struct {
 	HallCallsBool HallCallsBool
 	CabCallsBool  CabCallsBool
 }
-
+func (h HallCallsBool) HasCalls() bool {
+	for _, floor := range h {
+		if floor[0] == true || floor[1] == true {
+			return true
+		}
+	}
+	return false
+}
+func (h CabCallsBool) HasCalls() bool {
+	for _, floor := range h {
+		if floor == true {
+			return true
+		}
+	}
+	return false
+}
 const (
 	ServicedCall   bool = false
 	UnservicedCall      = true

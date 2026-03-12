@@ -2,6 +2,7 @@ package elevstate
 
 import (
 	"root/elevio"
+	"strconv"
 )
 
 type Behaviour int
@@ -21,8 +22,10 @@ func (b Behaviour) String() string {
 		return "moving"
 	case DoorOpen:
 		return "doorOpen"
+	case Motorstop:
+		return "motorstop"
 	default:
-		panic(b)
+		panic(strconv.Itoa(int(b)))
 	}
 }
 

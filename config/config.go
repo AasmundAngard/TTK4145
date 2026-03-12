@@ -10,6 +10,7 @@ const (
 	NumButtons         = 3
 	HardwarePortNumber = 15657
 
-	DisconnectTime = 1 * time.Second
-	DoorOpenTime   = 3 * time.Second
+	DisconnectTime   = 1 * time.Second
+	DoorOpenTime     = 3 * time.Second
+	MotorTimeoutTime = 5 * time.Second
 )

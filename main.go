@@ -13,6 +13,16 @@ import (
 	"time"
 )
 
+func drainChannel[T any](variableC chan T, variable *T) {
+drainChannel:
+	for {
+		select {
+		case *variable = <-variableC:
+		default:
+			break drainChannel
+		}
+	}
+}
 func main() {
 
 	idPtr := flag.Int("id", 0, "ID of elevator, overwrite using -id=<newId>")
@@ -66,6 +76,12 @@ func main() {
 	state.Behaviour = elevstate.Idle
 	state.Direction = elevstate.Down
 
+	// Create dormant timer object
+	motorTimeoutTimer := time.NewTimer(0)
+	if !motorTimeoutTimer.Stop() {
+		<-motorTimeoutTimer.C
+	}
+
 	// Init
 	floor := elevio.GetFloor()
 	fmt.Println("startfloor:", floor)
@@ -77,6 +93,7 @@ func main() {
 		state.Floor = <-floorSensorC
 		elevio.SetMotorDirection(elevio.MD_Stop)
 	}
+	elevio.SetFloorIndicator(state.Floor)
 	var i int = 0 // Debugging
 	prevState = state
 	prevState.Direction = state.Direction.Opposite()
@@ -88,6 +105,8 @@ func main() {
 			fmt.Println("newfloor")
 			state.Floor = newFloor
 			elevio.SetFloorIndicator(state.Floor)
+			motorTimeoutTimer.Stop()
+			fmt.Println("Stopped timer")
 			switch state.Behaviour {
 			case elevstate.Moving:
 				nextState := sequenceassigner.NextState(hCalls, cCalls, state)
@@ -100,11 +119,16 @@ func main() {
 						cCalls[state.Floor] = false
 						completedCallC <- state.ToCabCallEvent()
 					}
+					if hCalls[state.Floor][state.Direction] {
+						hCalls[state.Floor][state.Direction] = false
+						completedCallC <- state.ToHallCallEvent()
+					}
 					state.Behaviour = elevstate.DoorOpen
 					localStateC <- state
 				case elevstate.Moving:
 					state.Direction = nextState.Direction
 					elevio.SetMotorDirection(state.Direction.ToMD())
+					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 					state.Behaviour = elevstate.Moving
 				case elevstate.Idle:
 					elevio.SetMotorDirection(elevio.MD_Stop)
@@ -116,7 +140,7 @@ func main() {
 				}
 
 			default:
-				panic("New floor in impossible state")
+				panic("New floor in impossible state:" + strconv.Itoa(int(state.Behaviour)))
 			}
 
 		case <-doorClosedC:
@@ -125,17 +149,26 @@ func main() {
 				nextState := sequenceassigner.NextState(hCalls, cCalls, state)
 				switch nextState.Behaviour {
 				case elevstate.Moving:
-					fmt.Println("doorclose: nextstate moving,", nextState.Direction)
-					state.Direction = nextState.Direction
 
-					elevio.SetMotorDirection(state.Direction.ToMD())
+					if state.Direction != nextState.Direction {
+						fmt.Println("change direction")
+						openDoorC <- true
+						state.Direction = nextState.Direction
+						state.Behaviour = elevstate.DoorOpen
+					} else {
+						fmt.Println("doorclose, moving")
 
-					if hCalls[state.Floor][state.Direction] {
-						completedCallC <- state.ToHallCallEvent()
-						hCalls[state.Floor][state.Direction] = false
+						state.Direction = nextState.Direction
+						elevio.SetMotorDirection(state.Direction.ToMD())
+
+						if hCalls[state.Floor][state.Direction] {
+							completedCallC <- state.ToHallCallEvent()
+							hCalls[state.Floor][state.Direction] = false
+						}
+						state.Behaviour = elevstate.Moving
+						localStateC <- state
 					}
-					state.Behaviour = elevstate.Moving
-					localStateC <- state
+
 				case elevstate.DoorOpen:
 					fmt.Println("doorclose: nextstate dooropen")
 
@@ -151,19 +184,12 @@ func main() {
 					state.Behaviour = elevstate.Idle
 				}
 			default:
-				panic("Door closed in impossible state")
+				panic("Door closed in impossible state" + strconv.Itoa(int(state.Behaviour)))
 			}
 		case syncedVariables = <-syncedVariablesC:
 			fmt.Println("main received")
+			drainChannel(syncedVariablesC, &syncedVariables)
 
-		drainChannel:
-			for {
-				select {
-				case syncedVariables = <-syncedVariablesC:
-				default:
-					break drainChannel
-				}
-			}
 			cCalls = syncedVariables.LocalCabCalls
 
 			localState := elevsync.OtherElevatorBool{State: state, CabCallsBool: cCalls}
@@ -178,11 +204,21 @@ func main() {
 			case elevstate.DoorOpen:
 				break
 			case elevstate.Idle:
-				if hCalls.HasCalls() || cCalls.HasCalls() {
+				state = sequenceassigner.NextState(hCalls, cCalls, state)
+				switch state.Behaviour {
+				case elevstate.DoorOpen:
 					openDoorC <- true
-					state.Behaviour = elevstate.DoorOpen
+				case elevstate.Moving:
+					elevio.SetMotorDirection(state.Direction.ToMD())
+					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
+				default:
 				}
+
 			}
+		case <-motorTimeoutTimer.C:
+			fmt.Println("Motor timed out")
+			state.Behaviour = elevstate.Motorstop
+			localStateC <- state
 		case <-stopButtonC:
 			elevio.SetMotorDirection(elevio.MD_Stop)
 			state.Behaviour = elevstate.Idle

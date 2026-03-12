@@ -33,7 +33,9 @@ func main() {
 	fmt.Println(id)
 	port := *portPtr
 
-	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors) // Dette er til den lokale heisserveren man kan kjøre (alt. hardware)
+	hardwareDisconnectedC := make(chan bool, 16)
+	hardwareReconnectedC := make(chan bool, 16)
+	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors, hardwareDisconnectedC, hardwareReconnectedC) // Dette er til den lokale heisserveren man kan kjøre (alt. hardware)
 
 	stopButtonC := make(chan bool, 16)
 	floorSensorC := make(chan int, 1)
@@ -65,6 +67,7 @@ func main() {
 		cabCallRequestOnInitC,
 		cabCallReceiveOnInitC,
 		cabCallSendOnRequestC,
+		hardwareDisconnectedC,
 	)
 
 	var syncedVariables elevsync.SyncedData
@@ -102,13 +105,11 @@ func main() {
 
 		select {
 		case newFloor := <-floorSensorC:
-			fmt.Println("newfloor")
-			state.Floor = newFloor
-			elevio.SetFloorIndicator(state.Floor)
-			motorTimeoutTimer.Stop()
-			fmt.Println("Stopped timer")
 			switch state.Behaviour {
 			case elevstate.Moving:
+				state.Floor = newFloor
+				elevio.SetFloorIndicator(state.Floor)
+				motorTimeoutTimer.Stop()
 				nextState := sequenceassigner.NextState(hCalls, cCalls, state)
 				switch nextState.Behaviour {
 				case elevstate.DoorOpen:
@@ -140,7 +141,17 @@ func main() {
 				}
 
 			default:
-				panic("New floor in impossible state:" + strconv.Itoa(int(state.Behaviour)))
+				elevio.SetMotorDirection(elevio.MD_Stop)
+				motorTimeoutTimer.Stop()
+				openDoorC <- true
+				state.Behaviour = elevstate.DoorOpen
+				elevio.SetFloorIndicator(newFloor)
+
+				if state.Floor == newFloor {
+					fmt.Println("Newfloormessage while on same floor")
+				} else {
+					fmt.Println("New floor in impossible state:" + strconv.Itoa(int(state.Behaviour)))
+				}
 			}
 
 		case <-doorClosedC:
@@ -151,7 +162,7 @@ func main() {
 				case elevstate.Moving:
 
 					if state.Direction != nextState.Direction {
-						fmt.Println("change direction")
+						fmt.Println("announce change of direction")
 						openDoorC <- true
 						state.Direction = nextState.Direction
 						state.Behaviour = elevstate.DoorOpen
@@ -184,7 +195,12 @@ func main() {
 					state.Behaviour = elevstate.Idle
 				}
 			default:
-				panic("Door closed in impossible state" + strconv.Itoa(int(state.Behaviour)))
+				fmt.Println("Door closed in impossible state" + strconv.Itoa(int(state.Behaviour)))
+				elevio.SetMotorDirection(elevio.MD_Stop)
+				motorTimeoutTimer.Stop()
+				openDoorC <- true
+				state.Behaviour = elevstate.DoorOpen
+
 			}
 		case syncedVariables = <-syncedVariablesC:
 			fmt.Println("main received")
@@ -213,6 +229,8 @@ func main() {
 					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 				default:
 				}
+			default:
+				break
 
 			}
 		case <-motorTimeoutTimer.C:
@@ -222,13 +240,32 @@ func main() {
 		case <-stopButtonC:
 			elevio.SetMotorDirection(elevio.MD_Stop)
 			state.Behaviour = elevstate.Idle
+		case <-hardwareReconnectedC:
+			fmt.Println("reconnected")
+			elevio.SetMotorDirection(elevio.MD_Stop)
+			currentFloor := elevio.GetFloor()
+			switch {
+			case state.Behaviour == elevstate.DoorOpen:
+				break
+			case state.Behaviour == elevstate.Moving && currentFloor == -1:
+				elevio.SetMotorDirection(state.Direction.ToMD())
+			case currentFloor == -1:
+				elevio.SetMotorDirection(state.Direction.ToMD())
+				state.Behaviour = elevstate.Moving
+			default:
+				openDoorC <- true
+				state.Behaviour = elevstate.DoorOpen
+			}
+
 		// Debug to monitor state and alive
 		case <-time.After(3 * time.Second):
 			i++
 
 			fmt.Println(i, "state:", state.Floor, state.Direction, state.Behaviour)
 		}
+		fmt.Println("lights")
 		lights.SetLights(cCalls, hCalls)
+		fmt.Println("donelights")
 
 	}
 

@@ -140,8 +140,6 @@ func NextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool,
 				nextState.Direction = elevstate.Up
 			case hallCalls[currentState.Floor][elevstate.Down] && !cabAbove(cabCalls, currentState.Floor):
 				nextState.Direction = elevstate.Down
-			case currentState.Floor == config.NumFloors:
-				nextState.Direction = elevstate.Down
 			default:
 				nextState.Direction = elevstate.Up
 			}
@@ -167,8 +165,6 @@ func NextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool,
 			case hallCalls[currentState.Floor][elevstate.Down]:
 				nextState.Direction = elevstate.Down
 			case hallCalls[currentState.Floor][elevstate.Up] && !cabBelow(cabCalls, currentState.Floor):
-				nextState.Direction = elevstate.Up
-			case currentState.Floor == 0:
 				nextState.Direction = elevstate.Up
 			default:
 				nextState.Direction = elevstate.Down

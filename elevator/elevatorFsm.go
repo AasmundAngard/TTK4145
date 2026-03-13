@@ -22,15 +22,13 @@ drainChannel:
 		}
 	}
 }
-func Elevator(fsmStateC chan<- elevstate.ElevState, completedCallC chan<- elevio.CallEvent, confirmedCallsC <-chan elevsync.CallsBool, hardwareReconnectedC <-chan bool) {
+func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC chan<- elevio.CallEvent, callsToElevatorC <-chan elevsync.CallsBool, hardwareReconnectedC <-chan bool) {
 
 	stopButtonC := make(chan bool, 16)
 	floorSensorC := make(chan int, 1)
 	openDoorC := make(chan bool, 1)
 	doorClosedC := make(chan bool, 1)
 	doorObstructedC := make(chan bool, 1)
-
-	// confirmedCallsC := make(chan elevsync.CallsBool, 16)
 
 	go elevio.PollStopButton(stopButtonC)
 	go elevio.PollFloorSensor(floorSensorC)
@@ -66,7 +64,8 @@ func Elevator(fsmStateC chan<- elevstate.ElevState, completedCallC chan<- elevio
 	var i int = 0 // Debugging
 	prevState = state
 	prevState.Direction = state.Direction.Opposite()
-	fsmStateC <- state
+	fsmStateToMainC <- state
+	lights.SetLights(cCalls, hCalls)
 
 	for {
 
@@ -85,14 +84,13 @@ func Elevator(fsmStateC chan<- elevstate.ElevState, completedCallC chan<- elevio
 					state.Direction = nextState.Direction
 					if cCalls[state.Floor] {
 						cCalls[state.Floor] = false
-						completedCallC <- state.ToCabCallEvent()
+						completedCallToSyncC <- state.ToCabCallEvent()
 					}
 					if hCalls[state.Floor][state.Direction] {
 						hCalls[state.Floor][state.Direction] = false
-						completedCallC <- state.ToHallCallEvent()
+						completedCallToSyncC <- state.ToHallCallEvent()
 					}
 					state.Behaviour = elevstate.DoorOpen
-					fsmStateC <- state
 				case elevstate.Moving:
 					state.Direction = nextState.Direction
 					elevio.SetMotorDirection(state.Direction.ToMD())
@@ -101,83 +99,65 @@ func Elevator(fsmStateC chan<- elevstate.ElevState, completedCallC chan<- elevio
 				case elevstate.Idle:
 					elevio.SetMotorDirection(elevio.MD_Stop)
 					state.Behaviour = elevstate.Idle
-					fsmStateC <- state
 				default:
 					elevio.SetMotorDirection(elevio.MD_Stop)
 					state.Behaviour = elevstate.Idle
 				}
 
 			default:
+				fmt.Println("New floor in impossible state:" + strconv.Itoa(int(state.Behaviour)))
 				elevio.SetMotorDirection(elevio.MD_Stop)
 				motorTimeoutTimer.Stop()
 				elevio.SetFloorIndicator(newFloor)
 				openDoorC <- true
 				state.Behaviour = elevstate.DoorOpen
-
-				if state.Floor == newFloor {
-					fmt.Println("Newfloormessage while on same floor")
-				} else {
-					fmt.Println("New floor in impossible state:" + strconv.Itoa(int(state.Behaviour)))
-					state.Floor = newFloor
-					fsmStateC <- state
-				}
 			}
 
 		case <-doorClosedC:
 			switch state.Behaviour {
 			case elevstate.DoorOpen:
 				nextState := sequenceassigner.NextState(hCalls, cCalls, state)
+
 				switch nextState.Behaviour {
 				case elevstate.Moving:
-
 					if state.Direction != nextState.Direction {
-						fmt.Println("announce change of direction")
 						openDoorC <- true
 						state.Direction = nextState.Direction
 						state.Behaviour = elevstate.DoorOpen
 					} else {
-						fmt.Println("doorclose, moving")
-
 						state.Direction = nextState.Direction
 						elevio.SetMotorDirection(state.Direction.ToMD())
+						motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 
 						if hCalls[state.Floor][state.Direction] {
-							completedCallC <- state.ToHallCallEvent()
+							completedCallToSyncC <- state.ToHallCallEvent()
 							hCalls[state.Floor][state.Direction] = false
 						}
 						state.Behaviour = elevstate.Moving
-						fsmStateC <- state
 					}
 
 				case elevstate.DoorOpen:
-					fmt.Println("doorclose: nextstate dooropen")
-
 					openDoorC <- true
 					state.Direction = state.Direction.Opposite()
-					completedCallC <- state.ToHallCallEvent()
+					completedCallToSyncC <- state.ToHallCallEvent()
 					hCalls[state.Floor][state.Direction] = false
 					state.Behaviour = elevstate.DoorOpen
-					fsmStateC <- state
 
 				case elevstate.Idle:
 					state.Behaviour = elevstate.Idle
-					fsmStateC <- state
-					fmt.Println("doorclose: nextstate idle")
 				default:
 					state.Behaviour = elevstate.Idle
-					fsmStateC <- state
 				}
 			default:
-				fmt.Println("Door closed in impossible state" + strconv.Itoa(int(state.Behaviour)))
+				fmt.Println("Door closed in impossible state:" + strconv.Itoa(int(state.Behaviour)))
 				elevio.SetMotorDirection(elevio.MD_Stop)
 				motorTimeoutTimer.Stop()
 				openDoorC <- true
 				state.Behaviour = elevstate.DoorOpen
 
 			}
-		case confirmedCalls := <-confirmedCallsC:
-			fmt.Println("main received")
-			drainChannel(confirmedCallsC, &confirmedCalls)
+		case confirmedCalls := <-callsToElevatorC:
+			drainChannel(callsToElevatorC, &confirmedCalls)
 			hCalls, cCalls = confirmedCalls.HallCallsBool, confirmedCalls.CabCallsBool
 			switch state.Behaviour {
 			case elevstate.Moving:
@@ -201,10 +181,13 @@ func Elevator(fsmStateC chan<- elevstate.ElevState, completedCallC chan<- elevio
 		case <-motorTimeoutTimer.C:
 			fmt.Println("Motor timed out")
 			state.Behaviour = elevstate.Motorstop
-			fsmStateC <- state
+			if elevio.GetFloor() == -1 {
+				elevio.SetMotorDirection(state.Direction.ToMD())
+				motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
+			}
 		case <-stopButtonC:
 			elevio.SetMotorDirection(elevio.MD_Stop)
-			state.Behaviour = elevstate.Idle
+			state.Behaviour = elevstate.Moving
 		case <-hardwareReconnectedC:
 			fmt.Println("reconnected")
 			elevio.SetMotorDirection(elevio.MD_Stop)
@@ -212,6 +195,7 @@ func Elevator(fsmStateC chan<- elevstate.ElevState, completedCallC chan<- elevio
 			switch {
 			case currentFloor == -1:
 				elevio.SetMotorDirection(state.Direction.ToMD())
+				motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 				state.Behaviour = elevstate.Moving
 			default:
 				openDoorC <- true
@@ -221,14 +205,11 @@ func Elevator(fsmStateC chan<- elevstate.ElevState, completedCallC chan<- elevio
 		// Debug to monitor state and alive
 		case <-time.After(3 * time.Second):
 			i++
-
 			fmt.Println("fsm", i, "state:", state.Floor, state.Direction, state.Behaviour)
 		}
-		fmt.Println("lights")
 		lights.SetLights(cCalls, hCalls)
-		fmt.Println("donelights")
 
-		fsmStateC <- state
+		fsmStateToMainC <- state
 	}
 
 }

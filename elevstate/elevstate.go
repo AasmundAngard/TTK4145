@@ -23,7 +23,7 @@ func (b Behaviour) String() string {
 	case DoorOpen:
 		return "doorOpen"
 	case Motorstop:
-		return "motorstop"
+		return "idle"
 	default:
 		panic(strconv.Itoa(int(b)))
 	}

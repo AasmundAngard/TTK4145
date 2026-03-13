@@ -28,7 +28,7 @@ func main() {
 	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors, hardwareDisconnectedC, hardwareReconnectedC)
 
 	fsmStateC := make(chan elevstate.ElevState, 16)
-	confirmedCallsC := make(chan elevsync.CallsBool, 16)
+	callsToElevatorC := make(chan elevsync.CallsBool, 16)
 
 	hardWareCallsC := make(chan elevio.CallEvent, 16)
 	localStateC := make(chan elevstate.ElevState, 16)
@@ -41,7 +41,7 @@ func main() {
 	cabCallReceiveOnInitC := make(chan elevsync.CabCallsList, 16)
 	cabCallSendOnRequestC := make(chan elevsync.CabCalls, 16)
 
-	go elevator.Elevator(fsmStateC, completedCallC, confirmedCallsC, hardwareReconnectedC)
+	go elevator.Elevator(fsmStateC, completedCallC, callsToElevatorC, hardwareReconnectedC)
 
 	go elevio.PollButtons(hardWareCallsC)
 	go elevsync.Sync(
@@ -79,7 +79,7 @@ func main() {
 				syncedVariables.OtherElevatorListBool...,
 			)
 
-			confirmedCallsC <- elevsync.CallsBool{
+			callsToElevatorC <- elevsync.CallsBool{
 				HallCallsBool: sequenceassigner.AssignCalls(allStates, syncedVariables.SyncedHallCalls),
 				CabCallsBool:  syncedVariables.LocalCabCalls,
 			}
@@ -93,7 +93,5 @@ func main() {
 			i++
 			fmt.Println("main", i, "state:", state.Floor, state.Direction, state.Behaviour)
 		}
-
 	}
-
 }

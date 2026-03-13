@@ -72,7 +72,7 @@ func cabBelow(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	return false
 }
 
-func AssignCalls(allStates []elevsync.OtherElevator, hallCalls elevsync.HallCallsBool) elevsync.HallCallsBool {
+func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.HallCallsBool) elevsync.HallCallsBool {
 	execFile := ""
 
 	switch runtime.GOOS {

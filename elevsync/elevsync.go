@@ -1,10 +1,10 @@
 package elevsync
 
 import (
-	"fmt"
 	"root/config"
 	"root/elevio"
 	"root/elevstate"
+	"strconv"
 )
 
 // Channel overview
@@ -19,9 +19,19 @@ type Call struct {
 
 type HallCalls [config.NumFloors][2]Call
 type CabCalls [config.NumFloors]Call
+type CabCallsList []CabCalls
 type Calls struct {
 	HallCalls HallCalls
 	CabCalls  CabCalls
+}
+
+func newCabCalls() CabCalls {
+	var cabCalls CabCalls
+	for floor := 0; floor < config.NumFloors; floor++ {
+		cabCalls[floor].NeedService = false
+		cabCalls[floor].TimeStamp = 0
+	}
+	return cabCalls
 }
 
 type HallCallsBool [config.NumFloors][2]bool
@@ -53,104 +63,185 @@ const (
 	UnservicedCall      = true
 )
 
-type NetworkMsg struct {
-	SenderID  int
+type NetworkReceiveMsg struct {
 	TimeStamp int64
+	SenderID  string
 	Calls     Calls
 	State     elevstate.ElevState
 }
+type NetworkTransmitMsg struct {
+	Calls Calls
+	State elevstate.ElevState
+}
 
 type OtherElevator struct {
+	ID        string
+	TimeStamp int64
+	Calls     Calls
+	State     elevstate.ElevState
+	Alive     bool
+}
+type OtherElevatorList []OtherElevator
+type OtherElevatorBool struct {
+	//ID		   	 int
 	State        elevstate.ElevState
 	CabCallsBool CabCallsBool
 }
 
-type syncOtherElevator struct {
-	State    elevstate.ElevState
-	CabCalls CabCalls
-}
-
 type SyncedData struct {
-	CallsBool      CallsBool
-	OtherElevators []OtherElevator
+	LocalCabCalls         CabCallsBool
+	SyncedHallCalls       HallCallsBool
+	OtherElevatorListBool []OtherElevatorBool
 }
 
-type globalCalls struct {
-	SenderID int
-	Calls    Calls
-}
-
-const ElevatorID int = 0
-const tolerance int = 10000000 // 10 ms in nanoseconds
-
-func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.ElevState, finishedCalls <-chan elevio.CallEvent, networkMsg <-chan NetworkMsg, syncedData chan<- SyncedData) {
+func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.ElevState, finishedCalls <-chan elevio.CallEvent, networkMsg <-chan NetworkReceiveMsg, syncedData chan<- SyncedData, cabCallsRequest <-chan string, cabCallsReceive <-chan CabCallsList, cabCallsSend chan<- CabCalls, hardwareDisconnectedC <-chan bool) {
 	var localCalls Calls
-	// var globalCallslist []globalCalls
+	var OtherElevatorList OtherElevatorList
 
-	// var confirmedCalls Calls
-
-	// store hwcall i localcalls
-	// send localcalls til network
-	// oppdater localcalls til synccalls når networkmsg kommer inn
-	// send syncedcalls til main
-
-	// hvordan skal sync vite når en localcall er synced?
-	// for hver hallcall i localcalls, sjekk om den er i de
-
+	var confirmedCalls CallsBool
 	var syncedDataToSend SyncedData
 
 	for {
 		select {
 		case incomingHardwareCall := <-hardwareCalls:
-			localCalls = localCalls.updateCall(incomingHardwareCall, UnservicedCall)
-			fmt.Println("Received: f:", incomingHardwareCall.Floor, "b:", incomingHardwareCall.Button)
+			localCalls.update(incomingHardwareCall, UnservicedCall)
 
 		case incomingFinishedCall := <-finishedCalls:
-			localCalls = localCalls.updateCall(incomingFinishedCall, ServicedCall)
-			fmt.Println("Received: f:", incomingFinishedCall.Floor, "b:", incomingFinishedCall.Button)
+			localCalls.update(incomingFinishedCall, ServicedCall)
 
 		case incomingNetworkMsg := <-networkMsg:
-			localCalls.mergeCalls(incomingNetworkMsg.Calls)
-		case <-localState:
-			break
+			OtherElevatorList.update(incomingNetworkMsg)
+			localCalls.mergeHallCalls(incomingNetworkMsg.Calls)
 
-			// case <-time.After(2 * time.Second):
-			// 	fmt.Println("sync:")
-			// 	for _, item := range localCalls.HallCalls.toBool() {
-			// 		fmt.Println(item[0], item[1])
-			// 	}
+		case incomingCabCallsList := <-cabCallsReceive:
+			localCalls.mergeCabCalls(incomingCabCallsList)
+
+		case ID := <-cabCallsRequest:
+			cabCallsSend <- OtherElevatorList.getCabCallsfromID(ID)
+			continue
 		}
 
-		syncedDataToSend.CallsBool.HallCallsBool = localCalls.HallCalls.toBool()
-		syncedDataToSend.CallsBool.CabCallsBool = localCalls.CabCalls.toBool()
+		confirmedCalls = localCalls.decideCommonCalls(OtherElevatorList)
+
+		syncedDataToSend.format(confirmedCalls, OtherElevatorList)
 
 		syncedData <- syncedDataToSend
-		fmt.Println("Sent data from sync")
 	}
 }
 
-func (current Calls) updateCall(incoming elevio.CallEvent, callstate bool) Calls {
+func (syncedData *SyncedData) format(confirmedCalls CallsBool, OtherElevatorList OtherElevatorList) {
+	syncedData.LocalCabCalls = confirmedCalls.CabCallsBool
+	syncedData.SyncedHallCalls = confirmedCalls.HallCallsBool
+	syncedData.OtherElevatorListBool = OtherElevatorList.toBool()
+}
+
+func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID string) CabCalls {
+	cabCalls := newCabCalls()
+
+	for _, otherElevator := range otherElevatorList {
+		if otherElevator.ID == ID {
+			return otherElevator.Calls.CabCalls
+		}
+	}
+	return cabCalls
+}
+
+func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkReceiveMsg) {
+	elevatorFound := false
+
+	for i, otherElevator := range *OtherElevatorList {
+		if otherElevator.ID == incomingNetworkMsg.SenderID {
+			if otherElevator.TimeStamp < incomingNetworkMsg.TimeStamp {
+				(*OtherElevatorList)[i].State = incomingNetworkMsg.State
+				(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
+			}
+			elevatorFound = true
+			break
+		}
+	}
+
+	if !elevatorFound {
+		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
+	}
+
+}
+
+func (OtherElevatorList OtherElevatorList) toBool() []OtherElevatorBool {
+	var OtherElevatorListBool []OtherElevatorBool
+
+	for _, otherElevator := range OtherElevatorList {
+		OtherElevatorListBool = append(OtherElevatorListBool, OtherElevatorBool{State: otherElevator.State, CabCallsBool: otherElevator.Calls.CabCalls.toBool()})
+	}
+
+	return OtherElevatorListBool
+}
+
+func (current Calls) decideCommonCalls(otherElevatorList OtherElevatorList) CallsBool {
+	var confirmedCalls CallsBool
+	confirmedCalls.HallCallsBool = current.HallCalls.toBool()
+	confirmedCalls.CabCallsBool = current.CabCalls.toBool()
+
+	for floor := 0; floor < config.NumFloors; floor++ {
+		for btn := 0; btn < 2; btn++ {
+			if current.HallCalls[floor][btn].NeedService == false {
+				continue
+			}
+
+			confirmed := true
+			for _, otherElevator := range otherElevatorList {
+				if otherElevator.Calls.HallCalls[floor][btn].NeedService == false || otherElevator.Calls.HallCalls[floor][btn].TimeStamp != current.HallCalls[floor][btn].TimeStamp {
+					confirmed = false
+					confirmedCalls.HallCallsBool[floor][btn] = false
+					break
+				}
+			}
+
+			if confirmed {
+				confirmedCalls.HallCallsBool[floor][btn] = true
+			}
+		}
+	}
+
+	return confirmedCalls
+}
+
+func (current *Calls) update(incoming elevio.CallEvent, callstate bool) {
 	floor := incoming.Floor
 	btn := incoming.Button
-
-	if btn == elevio.BT_HallUp || btn == elevio.BT_HallDown {
-		if true || incoming.TimeStamp > current.HallCalls[floor][btn].TimeStamp {
+	switch btn {
+	case elevio.BT_HallUp, elevio.BT_HallDown:
+		if current.HallCalls[floor][btn].NeedService != callstate {
 			current.HallCalls[floor][btn].NeedService = callstate
-			current.HallCalls[floor][btn].TimeStamp = incoming.TimeStamp
+			current.HallCalls[floor][btn].TimeStamp++
 		}
-	} else if btn == elevio.BT_Cab {
-		if true || incoming.TimeStamp > current.CabCalls[floor].TimeStamp {
+	case elevio.BT_Cab:
+		if current.CabCalls[floor].NeedService != callstate {
 			current.CabCalls[floor].NeedService = callstate
-			current.CabCalls[floor].TimeStamp = incoming.TimeStamp
+			current.CabCalls[floor].TimeStamp++
 		}
-	} else {
-		panic("Invalid ButtonType")
+	default:
+		panic("Invalid ButtonType " + strconv.Itoa(int(btn)))
 	}
 
-	return current
+	// if btn == elevio.BT_HallUp || btn == elevio.BT_HallDown {
+	// 	if current.HallCalls[floor][btn].NeedService != callstate {
+	// 		current.HallCalls[floor][btn].NeedService = callstate
+	// 		current.HallCalls[floor][btn].TimeStamp++
+	// 	}
+
+	// } else if btn == elevio.BT_Cab {
+	// 	if current.CabCalls[floor].NeedService != callstate {
+	// 		current.CabCalls[floor].NeedService = callstate
+	// 		current.CabCalls[floor].TimeStamp++
+	// 	}
+
+	// } else {
+	// 	panic("Invalid ButtonType " + strconv.Itoa(int(btn)))
+	// }
+
 }
 
-func (current Calls) mergeCalls(incoming Calls) {
+func (current *Calls) mergeHallCalls(incoming Calls) {
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for btn := 0; btn < 2; btn++ {
 			if incoming.HallCalls[floor][btn].TimeStamp > current.HallCalls[floor][btn].TimeStamp {
@@ -158,6 +249,25 @@ func (current Calls) mergeCalls(incoming Calls) {
 			}
 		}
 	}
+}
+
+func (localCalls *Calls) mergeCabCalls(incomingCabCallsLists CabCallsList) {
+	mergedCabCalls := newCabCalls()
+
+	for _, cabCalls := range incomingCabCallsLists {
+		for floor := 0; floor < config.NumFloors; floor++ {
+			if cabCalls[floor].TimeStamp > mergedCabCalls[floor].TimeStamp {
+				mergedCabCalls[floor] = cabCalls[floor]
+			}
+		}
+	}
+
+	for floor := 0; floor < config.NumFloors; floor++ {
+		mergedCabCalls[floor].NeedService = mergedCabCalls[floor].NeedService || localCalls.CabCalls[floor].NeedService
+		mergedCabCalls[floor].TimeStamp++
+	}
+
+	localCalls.CabCalls = mergedCabCalls
 }
 
 func (c CabCalls) toBool() CabCallsBool {

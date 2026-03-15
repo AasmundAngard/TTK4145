@@ -2,14 +2,16 @@ package elevstate
 
 import (
 	"root/elevio"
+	"strconv"
 )
 
 type Behaviour int
 
 const (
-	Idle     Behaviour = 0
-	Moving             = 1
-	DoorOpen           = 2
+	Idle      Behaviour = 0
+	Moving              = 1
+	DoorOpen            = 2
+	Motorstop           = 3
 )
 
 func (b Behaviour) String() string {
@@ -20,15 +22,19 @@ func (b Behaviour) String() string {
 		return "moving"
 	case DoorOpen:
 		return "doorOpen"
+	case Motorstop:
+		return "idle"
 	default:
-		panic(b)
+		panic(strconv.Itoa(int(b)))
 	}
 }
 
 type ElevState struct {
-	Behaviour Behaviour
-	Floor     int
-	Direction Direction
+	Behaviour       Behaviour
+	Floor           int
+	Direction       Direction
+	MotorStop       bool
+	DoorObstruction bool
 }
 
 func (e ElevState) ToCabCallEvent() elevio.CallEvent {

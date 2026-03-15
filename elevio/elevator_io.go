@@ -13,6 +13,9 @@ var _initialized bool = false
 var _numFloors int = 4
 var _mtx sync.Mutex
 var _conn net.Conn
+var _addr string
+var _hardwareDisconnectedC chan<- bool
+var _hardwareReconnectedC chan<- bool
 
 type MotorDirection int
 
@@ -41,19 +44,47 @@ type CallEvent struct {
 	TimeStamp int64
 }
 
-func Init(addr string, numFloors int) {
+func Init(addr string, numFloors int, hardwareDisconnectedC chan<- bool, hardwareReconnectedC chan<- bool) {
 	if _initialized {
 		fmt.Println("Driver already initialized!")
 		return
 	}
 	_numFloors = numFloors
+	_addr = addr
+	_hardwareDisconnectedC = hardwareDisconnectedC
+	_hardwareReconnectedC = hardwareReconnectedC
 	_mtx = sync.Mutex{}
 	var err error
-	_conn, err = net.Dial("tcp", addr)
-	if err != nil {
-		panic(err.Error())
+	for {
+		_conn, err = net.Dial("tcp", addr)
+		if err == nil {
+			break
+			// panic(err.Error())
+		}
 	}
 	_initialized = true
+}
+
+func reconnect() {
+	// _mtx.Lock()
+	// defer _mtx.Unlock()
+
+	if _initialized {
+		fmt.Println("Driver already initialized!")
+		return
+	}
+
+	var err error
+	_hardwareDisconnectedC <- true
+	for {
+		_conn, err = net.Dial("tcp", _addr)
+		if err == nil {
+			break
+			// panic(err.Error())
+		}
+	}
+	_initialized = true
+	_hardwareReconnectedC <- true
 }
 
 func SetMotorDirection(dir MotorDirection) {
@@ -77,6 +108,7 @@ func SetStopLamp(value bool) {
 }
 
 func PollButtons(receiver chan<- CallEvent) {
+	var i int64 = 0
 	prev := make([][3]bool, _numFloors)
 	for {
 		time.Sleep(_pollRate)
@@ -84,7 +116,8 @@ func PollButtons(receiver chan<- CallEvent) {
 			for b := ButtonType(0); b < 3; b++ {
 				v := GetButton(b, f)
 				if v != prev[f][b] && v != false {
-					receiver <- CallEvent{f, ButtonType(b), 0}
+					i++
+					receiver <- CallEvent{f, ButtonType(b), i}
 				}
 				prev[f][b] = v
 			}
@@ -154,30 +187,50 @@ func GetObstruction() bool {
 
 func read(in [4]byte) [4]byte {
 	_mtx.Lock()
-	defer _mtx.Unlock()
 
 	_, err := _conn.Write(in[:])
 	if err != nil {
-		panic("Lost connection to Elevator Server")
+		_initialized = false
+		// _conn.Close()
+		// _mtx.Unlock()
+		fmt.Println("write read")
+		reconnect()
+		_, err = _conn.Write(in[:])
+
+		// panic("Lost connection to Elevator Server")
 	}
 
 	var out [4]byte
 	_, err = _conn.Read(out[:])
 	if err != nil {
-		panic("Lost connection to Elevator Server")
+		_initialized = false
+		// _conn.Close()
+		// _mtx.Unlock()
+		fmt.Println("read read")
+		reconnect()
+		_, err = _conn.Write(in[:])
+		_, err = _conn.Read(out[:])
+
+		// panic("Lost connection to Elevator Server")
 	}
+	_mtx.Unlock()
 
 	return out
 }
 
 func write(in [4]byte) {
 	_mtx.Lock()
-	defer _mtx.Unlock()
-
 	_, err := _conn.Write(in[:])
+
 	if err != nil {
-		panic("Lost connection to Elevator Server")
+		fmt.Println("write write")
+
+		reconnect()
+		_, err = _conn.Write(in[:])
+
+		// panic("Lost connection to Elevator Server")
 	}
+	_mtx.Unlock()
 }
 
 func toByte(a bool) byte {

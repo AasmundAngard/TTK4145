@@ -111,6 +111,14 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 				elevio.SetFloorIndicator(newFloor)
 				openDoorC <- true
 				state.Behaviour = elevstate.DoorOpen
+				if cCalls[state.Floor] {
+					cCalls[state.Floor] = false
+					completedCallToSyncC <- state.ToCabCallEvent()
+				}
+				if hCalls[state.Floor][state.Direction] {
+					hCalls[state.Floor][state.Direction] = false
+					completedCallToSyncC <- state.ToHallCallEvent()
+				}
 			}
 
 		case <-doorClosedC:
@@ -203,7 +211,7 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 
 		case <-stopButtonC:
 			elevio.SetMotorDirection(elevio.MD_Stop)
-			state.Behaviour = elevstate.Idle
+			state.Behaviour = elevstate.Moving
 			state.MotorStop = true
 		// Debug to monitor state and alive
 		case <-time.After(3 * time.Second):

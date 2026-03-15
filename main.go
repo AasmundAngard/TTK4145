@@ -23,23 +23,23 @@ func main() {
 	fmt.Println(id)
 	port := *portPtr
 
-	hardwareDisconnectedC := make(chan bool, 16)
-	hardwareReconnectedC := make(chan bool, 16)
+	hardwareDisconnectedC := make(chan bool, 1024)
+	hardwareReconnectedC := make(chan bool, 1024)
 	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors, hardwareDisconnectedC, hardwareReconnectedC)
 
-	fsmStateC := make(chan elevstate.ElevState, 16)
-	callsToElevatorC := make(chan elevsync.CallsBool, 16)
+	fsmStateC := make(chan elevstate.ElevState, 1024)
+	callsToElevatorC := make(chan elevsync.CallsBool, 1024)
 
-	hardWareCallsC := make(chan elevio.CallEvent, 16)
-	localStateC := make(chan elevstate.ElevState, 16)
-	completedCallC := make(chan elevio.CallEvent, 16)
-	networkMsgC := make(chan elevsync.NetworkReceiveMsg, 16)
-	syncedVariablesC := make(chan elevsync.SyncedData, 16)
+	hardWareCallsC := make(chan elevio.CallEvent, 1024)
+	localStateC := make(chan elevstate.ElevState, 1024)
+	completedCallC := make(chan elevio.CallEvent, 1024)
+	networkMsgC := make(chan elevsync.NetworkReceiveMsg, 1024)
+	syncedVariablesC := make(chan elevsync.SyncedData, 1024)
 
 	// For network -> sync
-	cabCallRequestOnInitC := make(chan string, 16)
-	cabCallReceiveOnInitC := make(chan elevsync.CabCallsList, 16)
-	cabCallSendOnRequestC := make(chan elevsync.CabCalls, 16)
+	cabCallRequestOnInitC := make(chan string, 1024)
+	cabCallReceiveOnInitC := make(chan elevsync.CabCallsList, 1024)
+	cabCallSendOnRequestC := make(chan elevsync.CabCalls, 1024)
 
 	go elevator.Elevator(fsmStateC, completedCallC, callsToElevatorC, hardwareReconnectedC)
 
@@ -70,6 +70,7 @@ func main() {
 				prevState = state
 			}
 		case syncedVariables := <-syncedVariablesC:
+
 			allStates := append(
 				[]elevsync.OtherElevatorBool{
 					{

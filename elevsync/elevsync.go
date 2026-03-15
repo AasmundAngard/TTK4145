@@ -12,6 +12,7 @@ import (
 
 func Sync(
 	hardwareCalls <-chan elevio.CallEvent,
+
 	localStateCh <-chan elevstate.ElevState,
 	finishedCalls <-chan elevio.CallEvent,
 	networkReceiveMsg <-chan NetworkReceiveMsg,
@@ -60,7 +61,6 @@ func Sync(
 		case ID := <-cabCallsRequest:
 			cabCallsSend <- OtherElevatorList.getCabCallsfromID(ID)
 			continue
-
 		}
 
 		confirmedCalls = localCalls.decideCommonCalls(OtherElevatorList)

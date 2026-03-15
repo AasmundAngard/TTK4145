@@ -47,24 +47,19 @@ func Door(
 				elevio.SetDoorOpenLamp(false)
 				doorState = Closed
 				doorClosedC <- true
+				doorObstructedC <- false
 			}
-
-			doorObstructedC <- obstructed
 
 		case <-openDoorC:
 			elevio.SetDoorOpenLamp(true)
 			timer = time.NewTimer(config.DoorOpenTime)
 			doorState = OpenCountdown
-
-			if obstructed {
-				doorObstructedC <- true
-			}
-
 		case <-timer.C:
 			switch doorState {
 			case OpenCountdown:
 				if obstructed {
 					doorState = OpenWaiting
+					doorObstructedC <- true
 				} else {
 					elevio.SetDoorOpenLamp(false)
 					doorClosedC <- true

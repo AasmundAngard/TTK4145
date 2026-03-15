@@ -180,14 +180,13 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 			}
 		case <-motorTimeoutTimer.C:
 			fmt.Println("Motor timed out")
-			state.Behaviour = elevstate.Motorstop
+			state.MotorStop = true
 			if elevio.GetFloor() == -1 {
 				elevio.SetMotorDirection(state.Direction.ToMD())
 				motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 			}
-		case <-stopButtonC:
-			elevio.SetMotorDirection(elevio.MD_Stop)
-			state.Behaviour = elevstate.Moving
+		case doorIsObstructed := <-doorObstructedC:
+			state.DoorObstructed = doorIsObstructed
 		case <-hardwareReconnectedC:
 			fmt.Println("reconnected")
 			elevio.SetMotorDirection(elevio.MD_Stop)
@@ -202,6 +201,10 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 				state.Behaviour = elevstate.DoorOpen
 			}
 
+		case <-stopButtonC:
+			elevio.SetMotorDirection(elevio.MD_Stop)
+			state.Behaviour = elevstate.Idle
+			state.MotorStop = true
 		// Debug to monitor state and alive
 		case <-time.After(3 * time.Second):
 			i++

@@ -85,7 +85,7 @@ func main() {
 			}
 
 		case <-hardwareDisconnectedC:
-			state.Behaviour = elevstate.Motorstop
+			state.MotorStop = true
 			localStateC <- state
 
 		// Debug to monitor state and alive

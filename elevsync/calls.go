@@ -120,7 +120,7 @@ func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList) CallsBo
 
 			confirmed := true
 			for _, otherElevator := range otherElevatorList {
-				if otherElevator.Alive == false || otherElevator.State.MotorStop == true || otherElevator.State.DoorObstruction == true {
+				if otherElevator.Alive == false || otherElevator.State.MotorStop == true || otherElevator.State.DoorObstructed == true {
 					continue
 				}
 

@@ -10,8 +10,8 @@ const (
 	NumButtons         = 3
 	HardwarePortNumber = 15657
 
-	CabRequestPort  = 165871
-	CabCallPort     = 165872
+	CabRequestPort  = 16571
+	CabCallPort     = 16572
 	PeerUpdatePort  = 15647
 	StateUpdatePort = 16569
 	CabCallRetries  = 10

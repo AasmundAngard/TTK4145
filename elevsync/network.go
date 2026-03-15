@@ -6,15 +6,11 @@ import (
 	"strconv"
 )
 
-type NetworkReceiveMsg struct {
+type NetworkMsg struct {
 	TimeStamp int64
 	SenderID  string
 	Calls     Calls
 	State     elevstate.ElevState
-}
-type NetworkTransmitMsg struct {
-	Calls Calls
-	State elevstate.ElevState
 }
 
 type OtherElevator struct {
@@ -42,7 +38,7 @@ func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID string) CabCalls
 	return cabCalls
 }
 
-func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkReceiveMsg) {
+func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg) {
 	elevatorFound := false
 
 	for i, otherElevator := range *OtherElevatorList {
@@ -82,15 +78,15 @@ func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []s
 }
 
 func (OtherElevatorList OtherElevatorList) workingElevsOnlyToBool() []OtherElevatorBool {
-	var OtherElevatorListBool []OtherElevatorBool
+	var OtherElevatorBoolList []OtherElevatorBool
 
 	for _, otherElevator := range OtherElevatorList {
 		if otherElevator.Alive == true {
-			OtherElevatorListBool = append(OtherElevatorListBool, OtherElevatorBool{State: otherElevator.State, CabCallsBool: otherElevator.Calls.CabCalls.toBool()})
+			OtherElevatorBoolList = append(OtherElevatorBoolList, OtherElevatorBool{State: otherElevator.State, CabCallsBool: otherElevator.Calls.CabCalls.toBool()})
 		}
 	}
 
-	return OtherElevatorListBool
+	return OtherElevatorBoolList
 }
 
 func (OtherElevatorList OtherElevatorList) getIDsString() string {
@@ -103,14 +99,14 @@ func (OtherElevatorList OtherElevatorList) getIDsString() string {
 	return IDs
 }
 
-type SyncedData struct {
+type ConfirmedData struct {
 	LocalCabCalls         CabCallsBool
 	SyncedHallCalls       HallCallsBool
-	OtherElevatorListBool []OtherElevatorBool
+	OtherElevatorBoolList []OtherElevatorBool
 }
 
-func (syncedData *SyncedData) format(confirmedCalls CallsBool, OtherElevatorList OtherElevatorList) {
+func (syncedData *ConfirmedData) format(confirmedCalls CallsBool, OtherElevatorList OtherElevatorList) {
 	syncedData.LocalCabCalls = confirmedCalls.CabCallsBool
 	syncedData.SyncedHallCalls = confirmedCalls.HallCallsBool
-	syncedData.OtherElevatorListBool = OtherElevatorList.workingElevsOnlyToBool()
+	syncedData.OtherElevatorBoolList = OtherElevatorList.workingElevsOnlyToBool()
 }

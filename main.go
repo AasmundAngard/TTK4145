@@ -36,10 +36,12 @@ func main() {
 	networkMsgC := make(chan elevsync.NetworkReceiveMsg, 1024)
 	syncedVariablesC := make(chan elevsync.SyncedData, 1024)
 
-	// For network -> sync
 	cabCallRequestOnInitC := make(chan string, 1024)
 	cabCallReceiveOnInitC := make(chan elevsync.CabCallsList, 1024)
 	cabCallSendOnRequestC := make(chan elevsync.CabCalls, 1024)
+	networkRequestMsgC := make(chan struct{}, 1024)
+	networkTransmitMsgC := make(chan elevsync.NetworkTransmitMsg, 1024)
+	alivePeersC := make(chan []string, 1024)
 
 	go elevator.Elevator(fsmStateC, completedCallC, callsToElevatorC, hardwareReconnectedC)
 
@@ -53,6 +55,9 @@ func main() {
 		cabCallRequestOnInitC,
 		cabCallReceiveOnInitC,
 		cabCallSendOnRequestC,
+		networkRequestMsgC,
+		networkTransmitMsgC,
+		alivePeersC,
 	)
 
 	var state elevstate.ElevState

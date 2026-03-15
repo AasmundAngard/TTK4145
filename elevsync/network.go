@@ -44,10 +44,8 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 	for i, otherElevator := range *OtherElevatorList {
 		if otherElevator.ID == incomingNetworkMsg.SenderID {
 			if otherElevator.Version < incomingNetworkMsg.Version {
-			if otherElevator.Version < incomingNetworkMsg.Version {
 				(*OtherElevatorList)[i].State = incomingNetworkMsg.State
 				(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
-				(*OtherElevatorList)[i].Version = incomingNetworkMsg.Version
 				(*OtherElevatorList)[i].Version = incomingNetworkMsg.Version
 			}
 			elevatorFound = true

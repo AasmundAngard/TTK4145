@@ -1,0 +1,116 @@
+package elevsync
+
+import (
+	"root/config"
+	"root/elevstate"
+	"strconv"
+)
+
+type NetworkReceiveMsg struct {
+	TimeStamp int64
+	SenderID  string
+	Calls     Calls
+	State     elevstate.ElevState
+}
+type NetworkTransmitMsg struct {
+	Calls Calls
+	State elevstate.ElevState
+}
+
+type OtherElevator struct {
+	ID        string
+	TimeStamp int64
+	Calls     Calls
+	State     elevstate.ElevState
+	Alive     bool
+}
+type OtherElevatorList []OtherElevator
+type OtherElevatorBool struct {
+	//ID		   	 int
+	State        elevstate.ElevState
+	CabCallsBool CabCallsBool
+}
+
+func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID string) CabCalls {
+	cabCalls := newCabCalls()
+
+	for _, otherElevator := range otherElevatorList {
+		if otherElevator.ID == ID {
+			return otherElevator.Calls.CabCalls
+		}
+	}
+	return cabCalls
+}
+
+func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkReceiveMsg) {
+	elevatorFound := false
+
+	for i, otherElevator := range *OtherElevatorList {
+		if otherElevator.ID == incomingNetworkMsg.SenderID {
+			if otherElevator.TimeStamp < incomingNetworkMsg.TimeStamp {
+				(*OtherElevatorList)[i].State = incomingNetworkMsg.State
+				(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
+				(*OtherElevatorList)[i].TimeStamp = incomingNetworkMsg.TimeStamp
+			}
+			elevatorFound = true
+			break
+		}
+	}
+
+	if !elevatorFound {
+		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, TimeStamp: incomingNetworkMsg.TimeStamp, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
+		if len(*OtherElevatorList) > config.NumElevators {
+			panic("Too many elevators in the system:" + strconv.Itoa(len(*OtherElevatorList)) + " " + OtherElevatorList.getIDsString())
+		}
+	}
+}
+
+func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []string) {
+
+	for i, otherElevator := range *OtherElevatorList {
+		alive := false
+		for _, alivePeer := range alivePeersList {
+			if otherElevator.ID == alivePeer {
+				alive = true
+				break
+			}
+			// Sus, should reset timestamp when dead, but not disconnect????
+			(*OtherElevatorList)[i].TimeStamp = 0
+		}
+		(*OtherElevatorList)[i].Alive = alive
+	}
+}
+
+func (OtherElevatorList OtherElevatorList) workingElevsOnlyToBool() []OtherElevatorBool {
+	var OtherElevatorListBool []OtherElevatorBool
+
+	for _, otherElevator := range OtherElevatorList {
+		if otherElevator.Alive == true {
+			OtherElevatorListBool = append(OtherElevatorListBool, OtherElevatorBool{State: otherElevator.State, CabCallsBool: otherElevator.Calls.CabCalls.toBool()})
+		}
+	}
+
+	return OtherElevatorListBool
+}
+
+func (OtherElevatorList OtherElevatorList) getIDsString() string {
+	var IDs string
+
+	for _, otherElevator := range OtherElevatorList {
+		IDs += otherElevator.ID + " "
+	}
+
+	return IDs
+}
+
+type SyncedData struct {
+	LocalCabCalls         CabCallsBool
+	SyncedHallCalls       HallCallsBool
+	OtherElevatorListBool []OtherElevatorBool
+}
+
+func (syncedData *SyncedData) format(confirmedCalls CallsBool, OtherElevatorList OtherElevatorList) {
+	syncedData.LocalCabCalls = confirmedCalls.CabCallsBool
+	syncedData.SyncedHallCalls = confirmedCalls.HallCallsBool
+	syncedData.OtherElevatorListBool = OtherElevatorList.workingElevsOnlyToBool()
+}

@@ -6,35 +6,43 @@ import (
 	"root/elevsync"
 	"root/network/bcast"
 	"root/network/peers"
+	"slices"
 	"time"
 )
 
+type CabNetworkMsg struct {
+	SenderID	string
+	CabCalls 	elevsync.CabCalls 
+}
+
 func initElevator(id string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 	cabRequestTxC := make(chan string)
-	cabCallsRxC := make(chan elevsync.CabCalls)
+	cabCallsRxC := make(chan CabNetworkMsg)
 
 	go bcast.Transmitter(config.CabRequestPort, cabRequestTxC)
 	go bcast.Receiver(config.CabCallPort, cabCallsRxC)
 
-	go func() {
-		for i := 0; i < config.CabCallRetries; i++ {
+	var collectedCalls []elevsync.CabCalls
+	var collectedIDs   []string
+
+	timeout := time.After(config.InitTimeout)
+
+	for len(collectedIDs) < config.NumElevators {
+		select {
+		case msg := <-cabCallsRxC:
+			if !slices.Contains(collectedIDs, msg.SenderID) {
+				collectedCalls = append(collectedCalls, msg.CabCalls)
+				collectedIDs = append(collectedIDs, msg.SenderID)
+			}
+		case <-timeout:
+			selfCabCallsToSyncC <- collectedCalls
+			return
+		default:
 			cabRequestTxC <- id
 			time.Sleep(config.InitRetryInterval)
 		}
-	}()
-
-	var collected []elevsync.CabCalls
-
-	timeout := time.After(config.InitTimeout)
-	for {
-		select {
-		case cabCalls := <-cabCallsRxC:
-			collected = append(collected, cabCalls)
-		case <-timeout:
-			selfCabCallsToSyncC <- collected
-			return
-		}
 	}
+	selfCabCallsToSyncC <- collectedCalls
 }
 
 func broadcastState(stateTxC chan<- elevsync.NetworkMsg, requestStatusC chan<- struct{}, selfDataToNetworkC <-chan elevsync.NetworkMsg) {
@@ -85,12 +93,13 @@ func Network(id string,
 	go bcast.Receiver(config.StateUpdatePort, stateRxC)
 
 	// 4. Make channels for recieving cabCall requests and sending cabCalls, and recv/transmit
-	cabCallsTxC := make(chan elevsync.CabCalls)
+	cabCallsTxC := make(chan CabNetworkMsg)
 	cabRequestRxC := make(chan string)
 
 	go bcast.Transmitter(config.CabCallPort, cabCallsTxC)
 	go bcast.Receiver(config.CabRequestPort, cabRequestRxC)
 
+	time.Sleep(time.Second)
 	// Initialize (ask for cab calls)
 	initElevator(id, selfCabCallsToSyncC)
 
@@ -103,13 +112,17 @@ func Network(id string,
 	go func() {
 		for {
 			requesterID := <-cabRequestRxC
-			fmt.Printf("Requested cab calls for id=%#v\n", requesterID)
-			otherCabCallsRequestC <- requesterID
+			if requesterID != id {
+				otherCabCallsRequestC <- requesterID
 
-			cabCalls := <-otherCabCallsToNetworkC
-			for i := 0; i < config.CabCallRetries; i++ {
-				cabCallsTxC <- cabCalls
-				time.Sleep(config.InitRetryInterval)
+				var cabMsg CabNetworkMsg
+				cabCalls := <-otherCabCallsToNetworkC
+				cabMsg.CabCalls = cabCalls
+				cabMsg.SenderID = id
+				for i := 0; i < config.CabCallRetries; i++ {
+					cabCallsTxC <- cabMsg
+					time.Sleep(config.InitRetryInterval)
+				}
 			}
 		}
 	}()

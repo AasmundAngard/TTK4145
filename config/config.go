@@ -21,5 +21,5 @@ const (
 	DoorOpenTime      = 3 * time.Second
 	BroadcastTime     = 10 * time.Millisecond
 	InitTimeout       = 2 * time.Second
-	InitRetryInterval = 200 * time.Millisecond
+	InitRetryInterval = 400 * time.Millisecond
 )

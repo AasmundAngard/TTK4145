@@ -126,12 +126,12 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 		fmt.Println("Problem with json.Unmarshal: ", err)
 		panic(err)
 	}
-	for elevnum, elev := range jsonOutput {
-		fmt.Println("Heis nummer:", elevnum)
-		for _, floor := range elev {
-			fmt.Println(floor[0], floor[1])
-		}
-	}
+	// for elevnum, elev := range jsonOutput {
+	// 	fmt.Println("Heis nummer:", elevnum)
+	// 	for _, floor := range elev {
+	// 		fmt.Println(floor[0], floor[1])
+	// 	}
+	// }
 	return (jsonOutput)[allStates[0].ID]
 }
 
@@ -139,10 +139,10 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 func NextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentState elevstate.ElevState) elevstate.ElevState {
 	var nextState elevstate.ElevState
 	nextState.Floor = currentState.Floor
-	fmt.Println("Nextstate input:")
-	for _, floor := range hallCalls {
-		fmt.Println(floor[0], floor[1])
-	}
+	// fmt.Println("Nextstate input:")
+	// for _, floor := range hallCalls {
+	// 	fmt.Println(floor[0], floor[1])
+	// }
 	// Inspired by the elevator algorithim in the project resources
 	switch currentState.Direction {
 	case elevstate.Up:
@@ -199,8 +199,8 @@ func NextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool,
 		nextState.Behaviour = elevstate.Idle // elevio.Direction somehow neither Stop, Up or Down, aka. funkiness afoot
 		nextState.Direction = elevstate.Up
 	}
-	fmt.Println("Current state: ", currentState.Behaviour, " at floor ", currentState.Floor, " with direction ", currentState.Direction)
-	fmt.Println("Next state: ", nextState.Behaviour)
+	// fmt.Println("Current state: ", currentState.Behaviour, " at floor ", currentState.Floor, " with direction ", currentState.Direction)
+	// fmt.Println("Next state: ", nextState.Behaviour)
 
 	return nextState
 }

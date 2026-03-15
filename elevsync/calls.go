@@ -3,6 +3,7 @@ package elevsync
 import (
 	"root/config"
 	"root/elevio"
+	"root/elevstate"
 	"strconv"
 )
 
@@ -18,7 +19,6 @@ const (
 
 type HallCalls [config.NumFloors][2]Call
 type CabCalls [config.NumFloors]Call
-type CabCallsList []CabCalls
 type Calls struct {
 	HallCalls HallCalls
 	CabCalls  CabCalls
@@ -88,7 +88,7 @@ func (self *Calls) mergeHallCalls(incoming Calls) {
 	}
 }
 
-func (localCalls *Calls) mergeCabCalls(incomingCabCallsLists CabCallsList) {
+func (self *Calls) mergeCabCalls(incomingCabCallsLists []CabCalls) {
 	mergedCabCalls := newCabCalls()
 
 	for _, cabCalls := range incomingCabCallsLists {
@@ -100,21 +100,21 @@ func (localCalls *Calls) mergeCabCalls(incomingCabCallsLists CabCallsList) {
 	}
 
 	for floor := 0; floor < config.NumFloors; floor++ {
-		mergedCabCalls[floor].NeedService = mergedCabCalls[floor].NeedService || localCalls.CabCalls[floor].NeedService
+		mergedCabCalls[floor].NeedService = mergedCabCalls[floor].NeedService || self.CabCalls[floor].NeedService
 		mergedCabCalls[floor].TimeStamp++
 	}
 
-	localCalls.CabCalls = mergedCabCalls
+	self.CabCalls = mergedCabCalls
 }
 
-func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList) CallsBool {
+func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList, localState elevstate.ElevState) CallsBool {
 	var confirmedCalls CallsBool
 	confirmedCalls.HallCallsBool = self.HallCalls.toBool()
 	confirmedCalls.CabCallsBool = self.CabCalls.toBool()
 
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for btn := 0; btn < 2; btn++ {
-			if self.HallCalls[floor][btn].NeedService == false {
+			if self.HallCalls[floor][btn].NeedService == false || localState.MotorStop == true || localState.DoorObstructed == true {
 				continue
 			}
 
@@ -125,6 +125,7 @@ func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList) CallsBo
 				}
 
 				if otherElevator.Calls.HallCalls[floor][btn].NeedService == false || otherElevator.Calls.HallCalls[floor][btn].TimeStamp != self.HallCalls[floor][btn].TimeStamp {
+					// If the other elevator does not have the same call or has a different timestamp, we do not confirm it
 					confirmed = false
 					confirmedCalls.HallCallsBool[floor][btn] = false
 					break

@@ -5,69 +5,65 @@ import (
 	"root/elevstate"
 )
 
-// Channel overview
-// hardwareCalls: 	Sync <- HW
-// finishedCalls: 	Sync <- Main
-// syncedData: 		Sync -> Main
-
-func Sync(
-	id string,
-	hardwareCalls <-chan elevio.CallEvent,
-
-	localStateCh <-chan elevstate.ElevState,
-	finishedCalls <-chan elevio.CallEvent,
-	networkReceiveMsg <-chan NetworkReceiveMsg,
-	syncedData chan<- SyncedData,
-	cabCallsRequest <-chan string,
-	cabCallsReceive <-chan CabCallsList,
-	cabCallsSend chan<- CabCalls,
-	networkRequestMsg <-chan struct{},
-	networkTransmitMsgCh chan<- NetworkTransmitMsg,
-	alivePeers <-chan []string) {
+func Sync(id string,
+	hardwareCallsC <-chan elevio.CallEvent,
+	finishedCallsC <-chan elevio.CallEvent,
+	localStateC <-chan elevstate.ElevState,
+	confirmedDataC chan<- ConfirmedData,
+	otherDataToSyncC <-chan NetworkMsg,
+	otherCabCallsRequestC <-chan string,
+	otherCabCallsToNetworkC chan<- CabCalls,
+	selfCabCallsToSyncC <-chan []CabCalls,
+	networkRequestSelfDataC <-chan struct{},
+	selfDataToNetworkC chan<- NetworkMsg,
+	alivePeersC <-chan []string) {
 
 	var localCalls Calls
 	var localState elevstate.ElevState
 	var OtherElevatorList OtherElevatorList
 
 	var confirmedCalls CallsBool
-	var syncedDataToSend SyncedData
+	var confirmedData ConfirmedData
+
+	var NetworkMsgTimestamp int64 = 0
 
 	for {
 		select {
-		case incomingHardwareCall := <-hardwareCalls:
+		case incomingHardwareCall := <-hardwareCallsC:
 			localCalls.addCall(incomingHardwareCall)
 
-		case incomingFinishedCall := <-finishedCalls:
+		case incomingFinishedCall := <-finishedCallsC:
 			localCalls.removeCall(incomingFinishedCall)
 
-		case incomingLocalState := <-localStateCh:
+		case incomingLocalState := <-localStateC:
 			localState = incomingLocalState
 
-		case incomingNetworkMsg := <-networkReceiveMsg:
+		case incomingNetworkMsg := <-otherDataToSyncC:
 			OtherElevatorList.update(incomingNetworkMsg)
 			localCalls.mergeHallCalls(incomingNetworkMsg.Calls)
 
-		case <-networkRequestMsg:
-			networkTransmitMsgCh <- NetworkTransmitMsg{Calls: localCalls, State: localState}
+		case <-networkRequestSelfDataC:
+			selfDataToNetworkC <- NetworkMsg{TimeStamp: NetworkMsgTimestamp, SenderID: id, Calls: localCalls, State: localState}
+			NetworkMsgTimestamp++
 			continue
 
-		case alivePeersList := <-alivePeers:
+		case alivePeersList := <-alivePeersC:
 			OtherElevatorList.updateAliveStatus(alivePeersList)
 
 			//Edge case: This elevator has requested its cab calls and receives them
-		case incomingCabCallsList := <-cabCallsReceive:
+		case incomingCabCallsList := <-selfCabCallsToSyncC:
 			localCalls.mergeCabCalls(incomingCabCallsList)
 
 			//Edge case: Another elevator is requesting its cab calls from this elevator
-		case ID := <-cabCallsRequest:
-			cabCallsSend <- OtherElevatorList.getCabCallsfromID(ID)
+		case ID := <-otherCabCallsRequestC:
+			otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromID(ID)
 			continue
 		}
 
-		confirmedCalls = localCalls.decideCommonCalls(OtherElevatorList)
+		confirmedCalls = localCalls.decideCommonCalls(OtherElevatorList, localState)
 
-		syncedDataToSend.format(confirmedCalls, OtherElevatorList)
+		confirmedData.format(confirmedCalls, OtherElevatorList)
 
-		syncedData <- syncedDataToSend
+		confirmedDataC <- confirmedData
 	}
 }

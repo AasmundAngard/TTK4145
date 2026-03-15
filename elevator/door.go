@@ -1,4 +1,4 @@
-package main //Foreløpig bare
+package elevator
 
 import (
 	"root/config"

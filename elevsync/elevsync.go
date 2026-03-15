@@ -11,6 +11,7 @@ import (
 // syncedData: 		Sync -> Main
 
 func Sync(
+	id string,
 	hardwareCalls <-chan elevio.CallEvent,
 
 	localStateCh <-chan elevstate.ElevState,

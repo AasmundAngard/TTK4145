@@ -8,6 +8,7 @@ import (
 	"root/elevio"
 	"root/elevstate"
 	"root/elevsync"
+	"root/network"
 	"root/sequenceassigner"
 	"strconv"
 	"time"
@@ -15,12 +16,12 @@ import (
 
 func main() {
 
-	// idPtr := flag.Int("id", 0, "ID of elevator, overwrite using -id=<newId>")
+	idPtr := flag.String("id", "id", "ID of elevator, overwrite using -id=<newId>")
 	portPtr := flag.Int("port", config.HardwarePortNumber, "Port of the hardware server, overwrite using -port=<newPort>")
 	flag.Parse()
 
-	// id := *idPtr
-	// fmt.Println(id)
+	id := *idPtr
+	fmt.Println(id)
 	port := *portPtr
 
 	hardwareDisconnectedC := make(chan bool, 1024)
@@ -45,8 +46,31 @@ func main() {
 
 	go elevator.Elevator(fsmStateC, completedCallC, callsToElevatorC, hardwareReconnectedC)
 
+	go network.Network(
+	id, 
+	requestState chan<- struct{}, 
+	stateToNetwork <-chan NetworkMsg, 
+	stateFromNetwork chan<- NetworkMsg, 
+	currentPeers chan<- []string, 
+	cabCallsRequest chan<- string, 
+	cabCallsToNetwork <-chan elevsync.CabCalls, 
+	cabCallsFromNetwork chan<- []elevsync.CabCalls
+	) 
+
+	go network.Network(
+		id,
+		networkRequestMsgC,
+		networkTransmitMsgC,
+		networkReceiveMsgC,
+		alivePeersC,
+		cabCallRequestOnInitC,
+		cabCallSendOnRequestC,
+		cabCallReceiveOnInitC,
+	)
+
 	go elevio.PollButtons(hardWareCallsC)
 	go elevsync.Sync(
+		id,
 		hardWareCallsC,
 		localStateC,
 		completedCallC,

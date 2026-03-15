@@ -11,48 +11,46 @@ import (
 	"time"
 )
 
-
 type NetworkMsg struct {
-	SenderID  string
-	Version	  int
-	Calls     elevsync.Calls
-	State     elevstate.ElevState
+	SenderID string
+	Version  int
+	Calls    elevsync.Calls
+	State    elevstate.ElevState
 }
 
 func initElevator(id string, cabCallsFromNetwork chan<- []elevsync.CabCalls) {
-    cabRequestTx := make(chan string)
-    cabCallsRx := make(chan elevsync.CabCalls)
+	cabRequestTx := make(chan string)
+	cabCallsRx := make(chan elevsync.CabCalls)
 
-    go bcast.Transmitter(config.CabRequestPort, cabRequestTx)
-    go bcast.Receiver(config.CabCallPort, cabCallsRx)
+	go bcast.Transmitter(config.CabRequestPort, cabRequestTx)
+	go bcast.Receiver(config.CabCallPort, cabCallsRx)
 
-    go func() {
+	go func() {
 		for i := 0; i < config.CabCallRetries; i++ {
 			cabRequestTx <- id
 			time.Sleep(config.InitRetryInterval)
 		}
 	}()
 
-    var collected []elevsync.CabCalls
+	var collected []elevsync.CabCalls
 
-    timeout := time.After(config.InitTimeout)
-    for {
-        select {
-        case cabCalls := <-cabCallsRx:
-            collected = append(collected, cabCalls)
-        case <-timeout:
-            cabCallsFromNetwork <- collected
-            return
-        }
-    }
+	timeout := time.After(config.InitTimeout)
+	for {
+		select {
+		case cabCalls := <-cabCallsRx:
+			collected = append(collected, cabCalls)
+		case <-timeout:
+			cabCallsFromNetwork <- collected
+			return
+		}
+	}
 }
 
-
-func broadcastState(bcastChannel chan<- NetworkMsg, requestStatus chan<- struct{}, stateToNetwork <- chan NetworkMsg) {
+func broadcastState(bcastChannel chan<- NetworkMsg, requestStatus chan<- struct{}, stateToNetwork <-chan NetworkMsg) {
 	for {
 		requestStatus <- struct{}{}
 
-		status := <- stateToNetwork
+		status := <-stateToNetwork
 
 		status.Version += 1
 		bcastChannel <- status
@@ -60,12 +58,9 @@ func broadcastState(bcastChannel chan<- NetworkMsg, requestStatus chan<- struct{
 	}
 }
 
-func handleCabRequest(cabRequestRx <- chan string, )
+// func handleCabRequest(cabRequestRx <- chan string, )
 
-
-
-
-func Network (id string, requestState chan<- struct{}, stateToNetwork <- chan NetworkMsg, stateFromNetwork chan<- NetworkMsg, currentPeers chan<- []string, cabCallsRequest chan<- string, cabCallsToNetwork <- chan elevsync.CabCalls, cabCallsFromNetwork chan<- []elevsync.CabCalls) {
+func Network(id string, requestState chan<- struct{}, stateToNetwork <-chan NetworkMsg, stateFromNetwork chan<- NetworkMsg, currentPeers chan<- []string, cabCallsRequest chan<- string, cabCallsToNetwork <-chan elevsync.CabCalls, cabCallsFromNetwork chan<- []elevsync.CabCalls) {
 
 	fmt.Println("initializing network")
 
@@ -105,9 +100,7 @@ func Network (id string, requestState chan<- struct{}, stateToNetwork <- chan Ne
 	// 5. (Solulu): make a function for bcasting status that is its own thread duh
 	go broadcastState(stateTx, requestState, stateToNetwork)
 
-
 	// 6. Make a loop w./ select/case that listens to the channels for updates:
-
 
 	go func() {
 		for {
@@ -127,7 +120,7 @@ func Network (id string, requestState chan<- struct{}, stateToNetwork <- chan Ne
 	for {
 		select {
 		// case peerUpdate (aka smth has happened in the peer department):
-			// put all current-peer ids into a []string and send on currentPeers channel
+		// put all current-peer ids into a []string and send on currentPeers channel
 		case peerUpdate := <-peerUpdateChRx:
 			fmt.Printf("Peer update:\n")
 			fmt.Printf("  Peers:    %q\n", peerUpdate.Peers)
@@ -137,8 +130,8 @@ func Network (id string, requestState chan<- struct{}, stateToNetwork <- chan Ne
 			currentPeers <- peerUpdate.Peers
 
 		// case NetworkTransmitMsg (recieved a status from the network)
-			// create a NetworkRecieveMsg and add the info from NetworkTransmitMsg into it, plus sender id
-			// Send on recvFromNetwork channel
+		// create a NetworkRecieveMsg and add the info from NetworkTransmitMsg into it, plus sender id
+		// Send on recvFromNetwork channel
 		case stateUpdate := <-stateRx:
 			fmt.Printf("Received: %#v\n", stateUpdate)
 			stateFromNetwork <- stateUpdate

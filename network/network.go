@@ -1,7 +1,6 @@
 package network
 
 import (
-	"flag"
 	"fmt"
 	"root/config"
 	"root/elevsync"
@@ -64,8 +63,8 @@ func Network(id string,
 	fmt.Println("initializing network")
 
 	// 1. TODO: Assign ports and ID (if a runtime flag has a certain value, set id by smth that lets you run multiple processes on one machine)
-	flag.StringVar(&id, "id", "", "Elevator ID (for running multiple instances on one machine)")
-	flag.Parse()
+	// flag.StringVar(&id, "id", "", "Elevator ID (for running multiple instances on one machine)")
+	// flag.Parse()
 
 	if id == "" {
 		// default behavior for normal single-process use

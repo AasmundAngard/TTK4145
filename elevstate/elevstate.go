@@ -30,9 +30,11 @@ func (b Behaviour) String() string {
 }
 
 type ElevState struct {
-	Behaviour Behaviour
-	Floor     int
-	Direction Direction
+	Behaviour       Behaviour
+	Floor           int
+	Direction       Direction
+	MotorStop       bool
+	DoorObstruction bool
 }
 
 func (e ElevState) ToCabCallEvent() elevio.CallEvent {

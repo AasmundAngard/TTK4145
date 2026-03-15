@@ -35,7 +35,7 @@ func main() {
 	localStateC := make(chan elevstate.ElevState, 1024)
 	completedCallC := make(chan elevio.CallEvent, 1024)
 	otherDataToSyncC := make(chan elevsync.NetworkMsg, 1024)
-	syncedVariablesC := make(chan elevsync.SyncedData, 1024)
+	syncedVariablesC := make(chan elevsync.ConfirmedData, 1024)
 
 	otherCabCallsRequestC := make(chan string, 1024)
 	selfCabCallsToSyncC := make(chan []elevsync.CabCalls, 1024)

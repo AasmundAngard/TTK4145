@@ -94,8 +94,21 @@ type SyncedData struct {
 	OtherElevatorListBool []OtherElevatorBool
 }
 
-func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.ElevState, finishedCalls <-chan elevio.CallEvent, networkMsg <-chan NetworkReceiveMsg, syncedData chan<- SyncedData, cabCallsRequest <-chan string, cabCallsReceive <-chan CabCallsList, cabCallsSend chan<- CabCalls, hardwareDisconnectedC <-chan bool) {
+func Sync(hardwareCalls <-chan elevio.CallEvent,
+	localStateCh <-chan elevstate.ElevState,
+	finishedCalls <-chan elevio.CallEvent,
+	networkReceiveMsg <-chan NetworkReceiveMsg,
+	syncedData chan<- SyncedData,
+	cabCallsRequest <-chan string,
+	cabCallsReceive <-chan CabCallsList,
+	cabCallsSend chan<- CabCalls,
+	hardwareDisconnectedC <-chan bool,
+	networkRequestMsg <-chan struct{},
+	networkTransmitMsg chan<- NetworkTransmitMsg,
+	alivePeers <-chan []string) {
+
 	var localCalls Calls
+	var localState elevstate.ElevState
 	var OtherElevatorList OtherElevatorList
 
 	var confirmedCalls CallsBool
@@ -109,16 +122,33 @@ func Sync(hardwareCalls <-chan elevio.CallEvent, localState <-chan elevstate.Ele
 		case incomingFinishedCall := <-finishedCalls:
 			localCalls.update(incomingFinishedCall, ServicedCall)
 
-		case incomingNetworkMsg := <-networkMsg:
+		case incomingLocalState := <-localStateCh:
+			localState = incomingLocalState
+
+		case incomingNetworkMsg := <-networkReceiveMsg:
 			OtherElevatorList.update(incomingNetworkMsg)
 			localCalls.mergeHallCalls(incomingNetworkMsg.Calls)
 
+		case <-networkRequestMsg:
+			var networkOutgoingMsg NetworkTransmitMsg
+			networkOutgoingMsg.Calls = localCalls
+			networkOutgoingMsg.State = localState
+
+			networkTransmitMsg <- networkOutgoingMsg
+			continue
+
+		case alivePeersList := <-alivePeers:
+			OtherElevatorList.updateAliveStatus(alivePeersList)
+
+			//Edge case: This elevator has requested its cab calls and receives them
 		case incomingCabCallsList := <-cabCallsReceive:
 			localCalls.mergeCabCalls(incomingCabCallsList)
 
+			//Edge case: Another elevator is requesting its cab calls from this elevator
 		case ID := <-cabCallsRequest:
 			cabCallsSend <- OtherElevatorList.getCabCallsfromID(ID)
 			continue
+
 		}
 
 		confirmedCalls = localCalls.decideCommonCalls(OtherElevatorList)
@@ -154,6 +184,7 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkRec
 			if otherElevator.TimeStamp < incomingNetworkMsg.TimeStamp {
 				(*OtherElevatorList)[i].State = incomingNetworkMsg.State
 				(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
+				(*OtherElevatorList)[i].TimeStamp = incomingNetworkMsg.TimeStamp
 			}
 			elevatorFound = true
 			break
@@ -161,16 +192,34 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkRec
 	}
 
 	if !elevatorFound {
-		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
+		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, TimeStamp: incomingNetworkMsg.TimeStamp, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
 	}
 
+}
+
+func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []string) {
+
+	for i, otherElevator := range *OtherElevatorList {
+		alive := false
+		for _, alivePeer := range alivePeersList {
+			if otherElevator.ID == alivePeer {
+				alive = true
+				break
+			}
+			// Sus, should reset timestamp when dead, but not disconnect????
+			(*OtherElevatorList)[i].TimeStamp = 0
+		}
+		(*OtherElevatorList)[i].Alive = alive
+	}
 }
 
 func (OtherElevatorList OtherElevatorList) toBool() []OtherElevatorBool {
 	var OtherElevatorListBool []OtherElevatorBool
 
 	for _, otherElevator := range OtherElevatorList {
-		OtherElevatorListBool = append(OtherElevatorListBool, OtherElevatorBool{State: otherElevator.State, CabCallsBool: otherElevator.Calls.CabCalls.toBool()})
+		if otherElevator.Alive == true {
+			OtherElevatorListBool = append(OtherElevatorListBool, OtherElevatorBool{State: otherElevator.State, CabCallsBool: otherElevator.Calls.CabCalls.toBool()})
+		}
 	}
 
 	return OtherElevatorListBool
@@ -189,6 +238,10 @@ func (current Calls) decideCommonCalls(otherElevatorList OtherElevatorList) Call
 
 			confirmed := true
 			for _, otherElevator := range otherElevatorList {
+				if otherElevator.Alive == false {
+					continue
+				}
+
 				if otherElevator.Calls.HallCalls[floor][btn].NeedService == false || otherElevator.Calls.HallCalls[floor][btn].TimeStamp != current.HallCalls[floor][btn].TimeStamp {
 					confirmed = false
 					confirmedCalls.HallCallsBool[floor][btn] = false

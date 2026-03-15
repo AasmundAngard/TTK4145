@@ -111,6 +111,14 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 				elevio.SetFloorIndicator(newFloor)
 				openDoorC <- true
 				state.Behaviour = elevstate.DoorOpen
+				if cCalls[state.Floor] {
+					cCalls[state.Floor] = false
+					completedCallToSyncC <- state.ToCabCallEvent()
+				}
+				if hCalls[state.Floor][state.Direction] {
+					hCalls[state.Floor][state.Direction] = false
+					completedCallToSyncC <- state.ToHallCallEvent()
+				}
 			}
 
 		case <-doorClosedC:
@@ -180,14 +188,13 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 			}
 		case <-motorTimeoutTimer.C:
 			fmt.Println("Motor timed out")
-			state.Behaviour = elevstate.Motorstop
+			state.MotorStop = true
 			if elevio.GetFloor() == -1 {
 				elevio.SetMotorDirection(state.Direction.ToMD())
 				motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 			}
-		case <-stopButtonC:
-			elevio.SetMotorDirection(elevio.MD_Stop)
-			state.Behaviour = elevstate.Moving
+		case doorIsObstructed := <-doorObstructedC:
+			state.DoorObstructed = doorIsObstructed
 		case <-hardwareReconnectedC:
 			fmt.Println("reconnected")
 			elevio.SetMotorDirection(elevio.MD_Stop)
@@ -202,6 +209,10 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 				state.Behaviour = elevstate.DoorOpen
 			}
 
+		case <-stopButtonC:
+			elevio.SetMotorDirection(elevio.MD_Stop)
+			state.Behaviour = elevstate.Moving
+			state.MotorStop = true
 		// Debug to monitor state and alive
 		case <-time.After(3 * time.Second):
 			i++

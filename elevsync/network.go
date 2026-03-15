@@ -44,8 +44,10 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 	for i, otherElevator := range *OtherElevatorList {
 		if otherElevator.ID == incomingNetworkMsg.SenderID {
 			if otherElevator.Version < incomingNetworkMsg.Version {
+			if otherElevator.Version < incomingNetworkMsg.Version {
 				(*OtherElevatorList)[i].State = incomingNetworkMsg.State
 				(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
+				(*OtherElevatorList)[i].Version = incomingNetworkMsg.Version
 				(*OtherElevatorList)[i].Version = incomingNetworkMsg.Version
 			}
 			elevatorFound = true
@@ -54,6 +56,7 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 	}
 
 	if !elevatorFound {
+		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
 		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
 		if len(*OtherElevatorList) > config.NumElevators {
 			panic("Too many elevators in the system:" + strconv.Itoa(len(*OtherElevatorList)) + " " + OtherElevatorList.getIDsString())
@@ -70,6 +73,8 @@ func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []s
 				alive = true
 				break
 			}
+			// Sus, should reset Version when dead, but not disconnect????
+			(*OtherElevatorList)[i].Version = 0
 			// Sus, should reset Version when dead, but not disconnect????
 			(*OtherElevatorList)[i].Version = 0
 		}

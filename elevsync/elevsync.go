@@ -5,27 +5,6 @@ import (
 	"root/elevstate"
 )
 
-// Channel overview
-// hardwareCalls: 	Sync <- HW
-// finishedCalls: 	Sync <- Main
-// syncedData: 		Sync -> Main
-
-// if btn == elevio.BT_HallUp || btn == elevio.BT_HallDown {
-// 	if current.HallCalls[floor][btn].NeedService != callstate {
-// 		current.HallCalls[floor][btn].NeedService = callstate
-// 		current.HallCalls[floor][btn].TimeStamp++
-// 	}
-
-// } else if btn == elevio.BT_Cab {
-// 	if current.CabCalls[floor].NeedService != callstate {
-// 		current.CabCalls[floor].NeedService = callstate
-// 		current.CabCalls[floor].TimeStamp++
-// 	}
-
-// } else {
-// 	panic("Invalid ButtonType " + strconv.Itoa(int(btn)))
-// }
-
 func Sync(hardwareCalls <-chan elevio.CallEvent,
 	localStateCh <-chan elevstate.ElevState,
 	finishedCalls <-chan elevio.CallEvent,
@@ -34,7 +13,6 @@ func Sync(hardwareCalls <-chan elevio.CallEvent,
 	cabCallsRequest <-chan string,
 	cabCallsReceive <-chan CabCallsList,
 	cabCallsSend chan<- CabCalls,
-	hardwareDisconnectedC <-chan bool,
 	networkRequestMsg <-chan struct{},
 	networkTransmitMsgCh chan<- NetworkTransmitMsg,
 	alivePeers <-chan []string) {
@@ -76,7 +54,6 @@ func Sync(hardwareCalls <-chan elevio.CallEvent,
 		case ID := <-cabCallsRequest:
 			cabCallsSend <- OtherElevatorList.getCabCallsfromID(ID)
 			continue
-
 		}
 
 		confirmedCalls = localCalls.decideCommonCalls(OtherElevatorList)

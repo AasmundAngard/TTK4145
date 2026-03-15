@@ -166,6 +166,9 @@ func NextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool,
 			fmt.Println("requestbelow")
 			nextState.Direction = elevstate.Down // Moving upwards, call(s) below
 			nextState.Behaviour = elevstate.Moving
+		case currentState.Floor == config.NumFloors:
+			nextState.Direction = elevstate.Down
+			nextState.Behaviour = currentState.Behaviour
 		default:
 			nextState.Direction = elevstate.Up
 			nextState.Behaviour = elevstate.Idle
@@ -190,6 +193,9 @@ func NextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool,
 		case requestsAbove(hallCalls, cabCalls, currentState.Floor):
 			nextState.Direction = elevstate.Up
 			nextState.Behaviour = elevstate.Moving
+		case currentState.Floor == 0:
+			nextState.Direction = elevstate.Up
+			nextState.Behaviour = currentState.Behaviour
 		default:
 			nextState.Direction = elevstate.Down
 			nextState.Behaviour = elevstate.Idle

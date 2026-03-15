@@ -9,7 +9,7 @@ func Sync(id string,
 	hardwareCallC <-chan elevio.CallEvent,
 	completedCallC <-chan elevio.CallEvent,
 	localStateC <-chan elevstate.ElevState,
-	syncedVariablesC chan<- ConfirmedData,
+	syncedVariablesC chan<- SyncedData,
 	otherDataToSyncC <-chan NetworkMsg,
 	otherCabCallsRequestC <-chan string,
 	otherCabCallsToNetworkC chan<- CabCalls,
@@ -23,9 +23,9 @@ func Sync(id string,
 	var OtherElevatorList OtherElevatorList
 
 	var confirmedCalls CallsBool
-	var confirmedData ConfirmedData
+	var syncedData SyncedData
 
-	var NetworkMsgTimestamp int64 = 0
+	var NetworkMsgVersion int64 = 0
 
 	for {
 		select {
@@ -43,8 +43,8 @@ func Sync(id string,
 			localCalls.mergeHallCalls(incomingNetworkMsg.Calls)
 
 		case <-networkRequestSelfDataC:
-			selfDataToNetworkC <- NetworkMsg{TimeStamp: NetworkMsgTimestamp, SenderID: id, Calls: localCalls, State: localState}
-			NetworkMsgTimestamp++
+			selfDataToNetworkC <- NetworkMsg{Version: NetworkMsgVersion, SenderID: id, Calls: localCalls, State: localState}
+			NetworkMsgVersion++
 			continue
 
 		case alivePeersList := <-alivePeersC:
@@ -62,8 +62,8 @@ func Sync(id string,
 
 		confirmedCalls = localCalls.decideCommonCalls(OtherElevatorList, localState)
 
-		confirmedData.format(confirmedCalls, OtherElevatorList)
+		syncedData.format(confirmedCalls, OtherElevatorList)
 
-		syncedVariablesC <- confirmedData
+		syncedVariablesC <- syncedData
 	}
 }

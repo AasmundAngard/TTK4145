@@ -57,7 +57,7 @@ func main() {
 		selfCabCallsToSyncC,
 	)
 
-	go elevio.PollButtons(hardWareCallsC)
+	go elevio.PollButtons(hardWareCallC)
 	go elevsync.Sync(
 		id,
 		hardWareCallC,
@@ -95,7 +95,7 @@ func main() {
 						State:        state,
 						CabCallsBool: syncedVariables.LocalCabCalls,
 					}},
-				syncedVariables.OtherElevatorListBool...,
+				syncedVariables.OtherElevatorBoolList...,
 			)
 
 			callsToElevatorC <- elevsync.CallsBool{

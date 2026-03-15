@@ -7,18 +7,18 @@ import (
 )
 
 type NetworkMsg struct {
-	TimeStamp int64
-	SenderID  string
-	Calls     Calls
-	State     elevstate.ElevState
+	Version  int64
+	SenderID string
+	Calls    Calls
+	State    elevstate.ElevState
 }
 
 type OtherElevator struct {
-	ID        string
-	TimeStamp int64
-	Calls     Calls
-	State     elevstate.ElevState
-	Alive     bool
+	ID      string
+	Version int64
+	Calls   Calls
+	State   elevstate.ElevState
+	Alive   bool
 }
 type OtherElevatorList []OtherElevator
 type OtherElevatorBool struct {
@@ -43,10 +43,10 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 
 	for i, otherElevator := range *OtherElevatorList {
 		if otherElevator.ID == incomingNetworkMsg.SenderID {
-			if otherElevator.TimeStamp < incomingNetworkMsg.TimeStamp {
+			if otherElevator.Version < incomingNetworkMsg.Version {
 				(*OtherElevatorList)[i].State = incomingNetworkMsg.State
 				(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
-				(*OtherElevatorList)[i].TimeStamp = incomingNetworkMsg.TimeStamp
+				(*OtherElevatorList)[i].Version = incomingNetworkMsg.Version
 			}
 			elevatorFound = true
 			break
@@ -54,7 +54,7 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 	}
 
 	if !elevatorFound {
-		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, TimeStamp: incomingNetworkMsg.TimeStamp, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
+		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
 		if len(*OtherElevatorList) > config.NumElevators {
 			panic("Too many elevators in the system:" + strconv.Itoa(len(*OtherElevatorList)) + " " + OtherElevatorList.getIDsString())
 		}
@@ -70,8 +70,8 @@ func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []s
 				alive = true
 				break
 			}
-			// Sus, should reset timestamp when dead, but not disconnect????
-			(*OtherElevatorList)[i].TimeStamp = 0
+			// Sus, should reset Version when dead, but not disconnect????
+			(*OtherElevatorList)[i].Version = 0
 		}
 		(*OtherElevatorList)[i].Alive = alive
 	}
@@ -99,13 +99,13 @@ func (OtherElevatorList OtherElevatorList) getIDsString() string {
 	return IDs
 }
 
-type ConfirmedData struct {
+type SyncedData struct {
 	LocalCabCalls         CabCallsBool
 	SyncedHallCalls       HallCallsBool
 	OtherElevatorBoolList []OtherElevatorBool
 }
 
-func (syncedData *ConfirmedData) format(confirmedCalls CallsBool, OtherElevatorList OtherElevatorList) {
+func (syncedData *SyncedData) format(confirmedCalls CallsBool, OtherElevatorList OtherElevatorList) {
 	syncedData.LocalCabCalls = confirmedCalls.CabCallsBool
 	syncedData.SyncedHallCalls = confirmedCalls.HallCallsBool
 	syncedData.OtherElevatorBoolList = OtherElevatorList.workingElevsOnlyToBool()

@@ -34,38 +34,27 @@ func main() {
 	hardWareCallsC := make(chan elevio.CallEvent, 1024)
 	localStateC := make(chan elevstate.ElevState, 1024)
 	completedCallC := make(chan elevio.CallEvent, 1024)
-	networkMsgC := make(chan elevsync.NetworkReceiveMsg, 1024)
+	otherDataToSyncC := make(chan elevsync.NetworkMsg, 1024)
 	syncedVariablesC := make(chan elevsync.SyncedData, 1024)
 
-	cabCallRequestOnInitC := make(chan string, 1024)
-	cabCallReceiveOnInitC := make(chan elevsync.CabCallsList, 1024)
-	cabCallSendOnRequestC := make(chan elevsync.CabCalls, 1024)
-	networkRequestMsgC := make(chan struct{}, 1024)
-	networkTransmitMsgC := make(chan elevsync.NetworkTransmitMsg, 1024)
+	otherCabCallsRequestC := make(chan string, 1024)
+	selfCabCallsToSyncC := make(chan []elevsync.CabCalls, 1024)
+	otherCabCallsToNetworkC := make(chan elevsync.CabCalls, 1024)
+	networkRequestSelfDataC := make(chan struct{}, 1024)
+	selfDataToNetworkC := make(chan elevsync.NetworkMsg, 1024)
 	alivePeersC := make(chan []string, 1024)
 
 	go elevator.Elevator(fsmStateC, completedCallC, callsToElevatorC, hardwareReconnectedC)
 
 	go network.Network(
-	id, 
-	requestState chan<- struct{}, 
-	stateToNetwork <-chan NetworkMsg, 
-	stateFromNetwork chan<- NetworkMsg, 
-	currentPeers chan<- []string, 
-	cabCallsRequest chan<- string, 
-	cabCallsToNetwork <-chan elevsync.CabCalls, 
-	cabCallsFromNetwork chan<- []elevsync.CabCalls
-	) 
-
-	go network.Network(
 		id,
-		networkRequestMsgC,
-		networkTransmitMsgC,
-		networkReceiveMsgC,
+		networkRequestSelfDataC,
+		selfDataToNetworkC,
+		otherDataToSyncC,
 		alivePeersC,
-		cabCallRequestOnInitC,
-		cabCallSendOnRequestC,
-		cabCallReceiveOnInitC,
+		otherCabCallsRequestC,
+		otherCabCallsToNetworkC,
+		selfCabCallsToSyncC,
 	)
 
 	go elevio.PollButtons(hardWareCallsC)

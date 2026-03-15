@@ -15,12 +15,12 @@ import (
 
 func main() {
 
-	idPtr := flag.Int("id", 0, "ID of elevator, overwrite using -id=<newId>")
-	portPtr := flag.Int("fork", config.HardwarePortNumber, "Port of the hardware server, overwrite using -port=<newPort>")
+	// idPtr := flag.Int("id", 0, "ID of elevator, overwrite using -id=<newId>")
+	portPtr := flag.Int("port", config.HardwarePortNumber, "Port of the hardware server, overwrite using -port=<newPort>")
 	flag.Parse()
 
-	id := *idPtr
-	fmt.Println(id)
+	// id := *idPtr
+	// fmt.Println(id)
 	port := *portPtr
 
 	hardwareDisconnectedC := make(chan bool, 1024)

@@ -6,10 +6,11 @@ import (
 )
 
 func Sync(id string,
-	hardwareCallsC <-chan elevio.CallEvent,
-	finishedCallsC <-chan elevio.CallEvent,
+	hardwareCallC <-chan elevio.CallEvent,
+	completedCallC <-chan elevio.CallEvent,
 	localStateC <-chan elevstate.ElevState,
-	confirmedDataC chan<- ConfirmedData,
+	syncedVariablesC chan<- ConfirmedData,
+
 	otherDataToSyncC <-chan NetworkMsg,
 	otherCabCallsRequestC <-chan string,
 	otherCabCallsToNetworkC chan<- CabCalls,
@@ -29,10 +30,10 @@ func Sync(id string,
 
 	for {
 		select {
-		case incomingHardwareCall := <-hardwareCallsC:
+		case incomingHardwareCall := <-hardwareCallC:
 			localCalls.addCall(incomingHardwareCall)
 
-		case incomingFinishedCall := <-finishedCallsC:
+		case incomingFinishedCall := <-completedCallC:
 			localCalls.removeCall(incomingFinishedCall)
 
 		case incomingLocalState := <-localStateC:
@@ -64,6 +65,6 @@ func Sync(id string,
 
 		confirmedData.format(confirmedCalls, OtherElevatorList)
 
-		confirmedDataC <- confirmedData
+		syncedVariablesC <- confirmedData
 	}
 }

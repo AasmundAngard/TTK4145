@@ -31,11 +31,11 @@ func main() {
 	fsmStateC := make(chan elevstate.ElevState, 1024)
 	callsToElevatorC := make(chan elevsync.CallsBool, 1024)
 
-	hardWareCallsC := make(chan elevio.CallEvent, 1024)
-	localStateC := make(chan elevstate.ElevState, 1024)
+	hardWareCallC := make(chan elevio.CallEvent, 1024)
 	completedCallC := make(chan elevio.CallEvent, 1024)
-	otherDataToSyncC := make(chan elevsync.NetworkMsg, 1024)
+	localStateC := make(chan elevstate.ElevState, 1024)
 	syncedVariablesC := make(chan elevsync.SyncedData, 1024)
+	otherDataToSyncC := make(chan elevsync.NetworkMsg, 1024)
 
 	otherCabCallsRequestC := make(chan string, 1024)
 	selfCabCallsToSyncC := make(chan []elevsync.CabCalls, 1024)
@@ -60,16 +60,16 @@ func main() {
 	go elevio.PollButtons(hardWareCallsC)
 	go elevsync.Sync(
 		id,
-		hardWareCallsC,
-		localStateC,
+		hardWareCallC,
 		completedCallC,
-		networkMsgC,
+		localStateC,
 		syncedVariablesC,
-		cabCallRequestOnInitC,
-		cabCallReceiveOnInitC,
-		cabCallSendOnRequestC,
-		networkRequestMsgC,
-		networkTransmitMsgC,
+		otherDataToSyncC,
+		otherCabCallsRequestC,
+		otherCabCallsToNetworkC,
+		selfCabCallsToSyncC,
+		networkRequestSelfDataC,
+		selfDataToNetworkC,
 		alivePeersC,
 	)
 

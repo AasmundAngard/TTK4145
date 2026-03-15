@@ -131,8 +131,9 @@ func Network(id string,
 		// create a NetworkRecieveMsg and add the info from NetworkTransmitMsg into it, plus sender id
 		// Send on recvFromNetwork channel
 		case stateUpdate := <-stateRxC:
-			otherDataToSyncC <- stateUpdate
-
+			if stateUpdate.SenderID != id {
+				otherDataToSyncC <- stateUpdate
+			}
 		}
 	}
 }

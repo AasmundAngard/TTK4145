@@ -23,7 +23,7 @@ type OtherElevator struct {
 }
 type OtherElevatorList []OtherElevator
 type OtherElevatorBool struct {
-	//ID		   	 int
+	ID           string
 	State        elevstate.ElevState
 	CabCallsBool CabCallsBool
 }
@@ -85,7 +85,7 @@ func (OtherElevatorList OtherElevatorList) workingElevsOnlyToBool() []OtherEleva
 
 	for _, otherElevator := range OtherElevatorList {
 		if otherElevator.Alive == true {
-			OtherElevatorBoolList = append(OtherElevatorBoolList, OtherElevatorBool{State: otherElevator.State, CabCallsBool: otherElevator.Calls.CabCalls.toBool()})
+			OtherElevatorBoolList = append(OtherElevatorBoolList, OtherElevatorBool{ID: otherElevator.ID, State: otherElevator.State, CabCallsBool: otherElevator.Calls.CabCalls.toBool()})
 		}
 	}
 

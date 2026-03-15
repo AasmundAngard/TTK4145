@@ -10,7 +10,6 @@ func Sync(id string,
 	completedCallC <-chan elevio.CallEvent,
 	localStateC <-chan elevstate.ElevState,
 	syncedVariablesC chan<- ConfirmedData,
-
 	otherDataToSyncC <-chan NetworkMsg,
 	otherCabCallsRequestC <-chan string,
 	otherCabCallsToNetworkC chan<- CabCalls,

@@ -3,6 +3,7 @@ package elevsync
 import (
 	"root/config"
 	"root/elevstate"
+	"slices"
 	"strconv"
 )
 
@@ -22,9 +23,69 @@ type OtherElevator struct {
 }
 type OtherElevatorList []OtherElevator
 type OtherElevatorBool struct {
-	//ID		   	 int
+	ID           string
 	State        elevstate.ElevState
 	CabCallsBool CabCallsBool
+}
+
+func (OtherElevatorList *OtherElevatorList) handleReconnect(localCalls *Calls, prevAlivePeers []string) {
+	// When a peer reconnects to the network (including self), and has version number > 0 for network msg,
+	// all version numbers are set to the highest version + 1 for each call
+
+	// When version numbers are equal but needService inequal, the call is set to needService = true to account for any
+	// possibly real calls with lower version number
+
+	// Potential issue: prevAlivePeers starts as nil/empty, so on the first alivePeersC update,
+	// any currently-alive peer will be treated as “reconnected”, triggering a normalization once at startup.
+
+	disconnectElevatorID := ""
+
+	// Find the reconnected elevator's id
+	for _, otherElevator := range *OtherElevatorList {
+		if otherElevator.Alive == true && otherElevator.Version > 0 && slices.Contains(prevAlivePeers, otherElevator.ID) == false {
+
+			disconnectElevatorID = otherElevator.ID
+			break
+		}
+	}
+
+	// Find the highest version number and needService for each call from other elevators
+	if disconnectElevatorID != "" {
+		for floor := 0; floor < config.NumFloors; floor++ {
+			for btn := 0; btn < 2; btn++ {
+
+				maxVersion := int64(0)
+				needService := false
+
+				for _, otherElevator := range *OtherElevatorList {
+					if maxVersion < otherElevator.Calls.HallCalls[floor][btn].Version && otherElevator.Alive == true {
+						maxVersion = otherElevator.Calls.HallCalls[floor][btn].Version
+					}
+					if otherElevator.Calls.HallCalls[floor][btn].NeedService == true && otherElevator.Alive == true {
+						needService = true
+					}
+				}
+
+				// Check self as well, and update version number and needService for the elevators.
+				if maxVersion < localCalls.HallCalls[floor][btn].Version {
+					maxVersion = localCalls.HallCalls[floor][btn].Version
+				}
+				localCalls.HallCalls[floor][btn].Version = maxVersion + 1
+
+				if localCalls.HallCalls[floor][btn].NeedService == true {
+					needService = true
+				}
+				localCalls.HallCalls[floor][btn].NeedService = needService
+
+				for i, otherElevator := range *OtherElevatorList {
+					if otherElevator.Alive == true {
+						(*OtherElevatorList)[i].Calls.HallCalls[floor][btn].Version = maxVersion + 1
+						(*OtherElevatorList)[i].Calls.HallCalls[floor][btn].NeedService = needService
+					}
+				}
+			}
+		}
+	}
 }
 
 func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID string) CabCalls {
@@ -70,10 +131,6 @@ func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []s
 				alive = true
 				break
 			}
-			// Sus, should reset Version when dead, but not disconnect????
-			(*OtherElevatorList)[i].Version = 0
-			// Sus, should reset Version when dead, but not disconnect????
-			(*OtherElevatorList)[i].Version = 0
 		}
 		(*OtherElevatorList)[i].Alive = alive
 	}
@@ -84,7 +141,7 @@ func (OtherElevatorList OtherElevatorList) workingElevsOnlyToBool() []OtherEleva
 
 	for _, otherElevator := range OtherElevatorList {
 		if otherElevator.Alive == true {
-			OtherElevatorBoolList = append(OtherElevatorBoolList, OtherElevatorBool{State: otherElevator.State, CabCallsBool: otherElevator.Calls.CabCalls.toBool()})
+			OtherElevatorBoolList = append(OtherElevatorBoolList, OtherElevatorBool{ID: otherElevator.ID, State: otherElevator.State, CabCallsBool: otherElevator.Calls.CabCalls.toBool()})
 		}
 	}
 
@@ -94,6 +151,7 @@ func (OtherElevatorList OtherElevatorList) workingElevsOnlyToBool() []OtherEleva
 func (OtherElevatorList OtherElevatorList) getIDsString() string {
 	var IDs string
 
+	//Inneficient, but only used for debug
 	for _, otherElevator := range OtherElevatorList {
 		IDs += otherElevator.ID + " "
 	}

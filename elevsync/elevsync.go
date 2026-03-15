@@ -43,7 +43,7 @@ func Sync(id string,
 			localCalls.mergeHallCalls(incomingNetworkMsg.Calls)
 
 		case <-networkRequestSelfDataC:
-			selfDataToNetworkC <- NetworkMsg{TimeStamp: NetworkMsgTimestamp, SenderID: id, Calls: localCalls, State: localState}
+			selfDataToNetworkC <- NetworkMsg{Version: NetworkMsgTimestamp, SenderID: id, Calls: localCalls, State: localState}
 			NetworkMsgTimestamp++
 			continue
 

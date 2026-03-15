@@ -17,9 +17,9 @@ import (
 type DoorState int
 
 const (
-	Closed DoorState = 0
-	OpenCountdown
-	OpenWaiting
+	Closed        DoorState = 0
+	OpenCountdown           = 1
+	OpenWaiting             = 2
 )
 
 func Door(
@@ -41,8 +41,7 @@ func Door(
 	for {
 
 		select {
-		case obstructed := <-obstructedC:
-
+		case obstructed = <-obstructedC:
 			if !obstructed && doorState == OpenWaiting {
 				elevio.SetDoorOpenLamp(false)
 				doorState = Closed

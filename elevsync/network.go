@@ -1,6 +1,7 @@
 package elevsync
 
 import (
+	"reflect"
 	"root/config"
 	"root/elevstate"
 	"strconv"
@@ -111,4 +112,13 @@ func (syncedData *SyncedData) format(confirmedCalls CallsBool, OtherElevatorList
 	syncedData.LocalCabCalls = confirmedCalls.CabCallsBool
 	syncedData.SyncedHallCalls = confirmedCalls.HallCallsBool
 	syncedData.OtherElevatorBoolList = OtherElevatorList.workingElevsOnlyToBool()
+}
+func (thisSyncedData *SyncedData) Equals(otherSyncedData SyncedData) bool {
+	if thisSyncedData.LocalCabCalls != otherSyncedData.LocalCabCalls {
+		return false
+	} else if thisSyncedData.SyncedHallCalls != otherSyncedData.SyncedHallCalls {
+		return false
+	} else if !reflect.DeepEqual(thisSyncedData.OtherElevatorBoolList, otherSyncedData.OtherElevatorBoolList) {
+	}
+	return true
 }

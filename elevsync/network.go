@@ -7,18 +7,18 @@ import (
 )
 
 type NetworkMsg struct {
-	Version   int64
-	SenderID  string
-	Calls     Calls
-	State     elevstate.ElevState
+	Version  int64
+	SenderID string
+	Calls    Calls
+	State    elevstate.ElevState
 }
 
 type OtherElevator struct {
-	ID        string
-	Version	  int64
-	Calls     Calls
-	State     elevstate.ElevState
-	Alive     bool
+	ID      string
+	Version int64
+	Calls   Calls
+	State   elevstate.ElevState
+	Alive   bool
 }
 type OtherElevatorList []OtherElevator
 type OtherElevatorBool struct {
@@ -55,6 +55,7 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 
 	if !elevatorFound {
 		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
+		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
 		if len(*OtherElevatorList) > config.NumElevators {
 			panic("Too many elevators in the system:" + strconv.Itoa(len(*OtherElevatorList)) + " " + OtherElevatorList.getIDsString())
 		}
@@ -70,6 +71,8 @@ func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []s
 				alive = true
 				break
 			}
+			// Sus, should reset Version when dead, but not disconnect????
+			(*OtherElevatorList)[i].Version = 0
 			// Sus, should reset Version when dead, but not disconnect????
 			(*OtherElevatorList)[i].Version = 0
 		}
@@ -99,13 +102,13 @@ func (OtherElevatorList OtherElevatorList) getIDsString() string {
 	return IDs
 }
 
-type ConfirmedData struct {
+type SyncedData struct {
 	LocalCabCalls         CabCallsBool
 	SyncedHallCalls       HallCallsBool
 	OtherElevatorBoolList []OtherElevatorBool
 }
 
-func (syncedData *ConfirmedData) format(confirmedCalls CallsBool, OtherElevatorList OtherElevatorList) {
+func (syncedData *SyncedData) format(confirmedCalls CallsBool, OtherElevatorList OtherElevatorList) {
 	syncedData.LocalCabCalls = confirmedCalls.CabCallsBool
 	syncedData.SyncedHallCalls = confirmedCalls.HallCallsBool
 	syncedData.OtherElevatorBoolList = OtherElevatorList.workingElevsOnlyToBool()

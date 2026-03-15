@@ -10,7 +10,6 @@ import (
 	"time"
 )
 
-
 func initElevator(id string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 	cabRequestTxC := make(chan string)
 	cabCallsRxC := make(chan elevsync.CabCalls)
@@ -53,14 +52,14 @@ func broadcastState(stateTxC chan<- elevsync.NetworkMsg, requestStatusC chan<- s
 
 // func handleCabRequest(cabRequestRx <- chan string, )
 
-func Network(id string, 
-			 networkRequestSelfDataC chan<- struct{}, 
-			 selfDataToNetworkC <-chan elevsync.NetworkMsg, 
-			 otherDataToSyncC chan<- elevsync.NetworkMsg, 
-			 alivePeersC chan<- []string, 
-			 otherCabCallsRequestC chan<- string, 
-			 otherCabCallsToNetworkC <-chan elevsync.CabCalls, 
-			 selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
+func Network(id string,
+	networkRequestSelfDataC chan<- struct{},
+	selfDataToNetworkC <-chan elevsync.NetworkMsg,
+	otherDataToSyncC chan<- elevsync.NetworkMsg,
+	alivePeersC chan<- []string,
+	otherCabCallsRequestC chan<- string,
+	otherCabCallsToNetworkC <-chan elevsync.CabCalls,
+	selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 
 	fmt.Println("initializing network")
 

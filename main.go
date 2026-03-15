@@ -75,6 +75,7 @@ func main() {
 
 	var state elevstate.ElevState
 	var prevState elevstate.ElevState
+	var prevSyncedVariables elevsync.SyncedData
 
 	// For debug
 	i := 0
@@ -88,6 +89,9 @@ func main() {
 				prevState = state
 			}
 		case syncedVariables := <-syncedVariablesC:
+			if syncedVariables.Equals(prevSyncedVariables) {
+				break
+			}
 
 			allStates := append(
 				[]elevsync.OtherElevatorBool{

@@ -5,7 +5,14 @@ import (
 	"root/elevstate"
 )
 
-func Sync(hardwareCalls <-chan elevio.CallEvent,
+// Channel overview
+// hardwareCalls: 	Sync <- HW
+// finishedCalls: 	Sync <- Main
+// syncedData: 		Sync -> Main
+
+func Sync(
+	hardwareCalls <-chan elevio.CallEvent,
+
 	localStateCh <-chan elevstate.ElevState,
 	finishedCalls <-chan elevio.CallEvent,
 	networkReceiveMsg <-chan NetworkReceiveMsg,

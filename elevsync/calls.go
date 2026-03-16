@@ -56,9 +56,9 @@ func newCabCalls() CabCalls {
 
 type HallCallsBool [config.NumFloors][2]bool
 type CabCallsBool [config.NumFloors]bool
-type CallsBool struct {
-	HallCallsBool HallCallsBool
-	CabCallsBool  CabCallsBool
+type CommonCalls struct {
+	HallCalls HallCallsBool
+	CabCalls  CabCallsBool
 }
 
 func (h HallCallsBool) HasCalls() bool {
@@ -107,10 +107,10 @@ func (self *Calls) mergeCabCalls(incomingCabCallsLists []CabCalls) {
 	(*self).CabCalls = mergedCabCalls
 }
 
-func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList, localState elevstate.ElevState) CallsBool {
-	var confirmedCalls CallsBool
-	confirmedCalls.HallCallsBool = self.HallCalls.toBool()
-	confirmedCalls.CabCallsBool = self.CabCalls.toBool()
+func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList, localState elevstate.ElevState) CommonCalls {
+	var confirmedCalls CommonCalls
+	confirmedCalls.HallCalls = self.HallCalls.toBool()
+	confirmedCalls.CabCalls = self.CabCalls.toBool()
 
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for btn := 0; btn < 2; btn++ {
@@ -127,13 +127,13 @@ func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList, localSt
 				if otherElevator.Calls.HallCalls[floor][btn].NeedService == false || otherElevator.Calls.HallCalls[floor][btn].Version != self.HallCalls[floor][btn].Version {
 					// If the other elevator does not have the same call or has a different version, we do not confirm it
 					confirmed = false
-					confirmedCalls.HallCallsBool[floor][btn] = false
+					confirmedCalls.HallCalls[floor][btn] = false
 					break
 				}
 			}
 
 			if confirmed {
-				confirmedCalls.HallCallsBool[floor][btn] = true
+				confirmedCalls.HallCalls[floor][btn] = true
 			}
 		}
 	}

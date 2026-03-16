@@ -12,7 +12,7 @@ const (
 
 	CabRequestPort  = 16571
 	CabCallPort     = 16572
-	PeerUpdatePort  = 15647
+	PeerUpdatePort  = 15147
 	StateUpdatePort = 16569
 	CabCallRetries  = 10
 
@@ -22,4 +22,5 @@ const (
 	BroadcastTime     = 10 * time.Millisecond
 	InitTimeout       = 2 * time.Second
 	InitRetryInterval = 400 * time.Millisecond
+	SyncTimeout       = 100 * time.Millisecond
 )

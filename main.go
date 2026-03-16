@@ -81,6 +81,9 @@ func main() {
 	var prevState elevstate.ElevState
 	var prevSyncedVariables elevsync.SyncedData
 
+	// For sync timeouting
+	lastSyncTime := time.Now()
+
 	// For debug
 	i := 0
 
@@ -93,9 +96,11 @@ func main() {
 				prevState = state
 			}
 		case syncedVariables := <-syncedVariablesC:
-			if syncedVariables.Equals(prevSyncedVariables) {
+			timeSinceLastSync := time.Since(lastSyncTime)
+			if syncedVariables.Equals(prevSyncedVariables) && timeSinceLastSync < config.SyncTimeout {
 				break
 			}
+			lastSyncTime = time.Now()
 
 			allStates := append(
 				[]elevsync.OtherElevatorBool{

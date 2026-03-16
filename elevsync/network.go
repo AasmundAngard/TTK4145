@@ -50,8 +50,8 @@ func (self *Calls) mergeHallCallsForgiving(OtherElevatorList *OtherElevatorList)
 				if maxVersion < otherElevator.Calls.HallCalls[floor][btn].Version && otherElevator.Alive == true {
 					maxVersion = otherElevator.Calls.HallCalls[floor][btn].Version
 				}
-				if otherElevator.Calls.HallCalls[floor][btn].NeedService == true && otherElevator.Alive == true {
-					needService = true
+				if otherElevator.Calls.HallCalls[floor][btn].NeedService == UnservicedCall && otherElevator.Alive == true {
+					needService = UnservicedCall
 				}
 			}
 
@@ -74,6 +74,32 @@ func (self *Calls) mergeHallCallsForgiving(OtherElevatorList *OtherElevatorList)
 			}
 		}
 	}
+}
+
+func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(alivePeersList []string,
+	//Blocking, to make sure the elevators have synchronized data before ruining everything
+
+	otherDataToSyncC <-chan NetworkMsg,
+	networkRequestSelfDataC <-chan struct{},
+	selfDataToNetworkC chan<- NetworkMsg,
+	NetworkMsgVersion int64, id string, localCallsPtr *Calls, localStatePtr *elevstate.ElevState) int64 {
+	var ReconnectRespondents []string
+	for len(ReconnectRespondents) < len(alivePeersList)-1 {
+		print("Waiting for responses")
+		select {
+		case incomingNetworkMsg := <-otherDataToSyncC:
+			if !slices.Contains(ReconnectRespondents, incomingNetworkMsg.SenderID) {
+				ReconnectRespondents = append(ReconnectRespondents, incomingNetworkMsg.SenderID)
+				(*OtherElevatorList).update(incomingNetworkMsg)
+			}
+
+		case <-networkRequestSelfDataC:
+			selfDataToNetworkC <- NetworkMsg{Version: NetworkMsgVersion, SenderID: id, Calls: *localCallsPtr, State: *localStatePtr}
+			NetworkMsgVersion++
+		}
+	}
+
+	return NetworkMsgVersion
 }
 
 func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID string) CabCalls {
@@ -104,7 +130,7 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 
 	if !elevatorFound {
 		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls, Alive: true})
-		if len(*OtherElevatorList) > config.NumElevators {
+		if len(*OtherElevatorList) > config.NumElevators-1 {
 			panic("Too many elevators in the system:" + strconv.Itoa(len(*OtherElevatorList)) + " " + OtherElevatorList.getIDsString())
 		}
 	}

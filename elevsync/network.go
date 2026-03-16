@@ -1,6 +1,8 @@
 package elevsync
 
 import (
+	"fmt"
+	"reflect"
 	"root/config"
 	"root/elevstate"
 	"slices"
@@ -101,8 +103,8 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 	}
 
 	if !elevatorFound {
-		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
-		if len(*OtherElevatorList) > config.NumElevators-1 {
+		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls, Alive: true})
+		if len(*OtherElevatorList) > config.NumElevators {
 			panic("Too many elevators in the system:" + strconv.Itoa(len(*OtherElevatorList)) + " " + OtherElevatorList.getIDsString())
 		}
 	}
@@ -119,6 +121,9 @@ func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []s
 			}
 		}
 		(*OtherElevatorList)[i].Alive = alive
+		if !alive {
+			fmt.Println("Elevator " + otherElevator.ID + " is dead.")
+		}
 	}
 }
 
@@ -155,4 +160,13 @@ func (syncedData *SyncedData) format(confirmedCalls CallsBool, OtherElevatorList
 	syncedData.LocalCabCalls = confirmedCalls.CabCallsBool
 	syncedData.SyncedHallCalls = confirmedCalls.HallCallsBool
 	syncedData.OtherElevatorBoolList = OtherElevatorList.workingElevsOnlyToBool()
+}
+func (thisSyncedData *SyncedData) Equals(otherSyncedData SyncedData) bool {
+	if thisSyncedData.LocalCabCalls != otherSyncedData.LocalCabCalls {
+		return false
+	} else if thisSyncedData.SyncedHallCalls != otherSyncedData.SyncedHallCalls {
+		return false
+	} else if !reflect.DeepEqual(thisSyncedData.OtherElevatorBoolList, otherSyncedData.OtherElevatorBoolList) {
+	}
+	return true
 }

@@ -10,8 +10,8 @@ const (
 	NumButtons         = 3
 	HardwarePortNumber = 15657
 
-	CabRequestPort  = 165871
-	CabCallPort     = 165872
+	CabRequestPort  = 16571
+	CabCallPort     = 16572
 	PeerUpdatePort  = 15647
 	StateUpdatePort = 16569
 	CabCallRetries  = 10
@@ -21,5 +21,5 @@ const (
 	DoorOpenTime      = 3 * time.Second
 	BroadcastTime     = 10 * time.Millisecond
 	InitTimeout       = 2 * time.Second
-	InitRetryInterval = 200 * time.Millisecond
+	InitRetryInterval = 400 * time.Millisecond
 )

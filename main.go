@@ -16,7 +16,7 @@ import (
 
 func main() {
 
-	idPtr := flag.String("id", "id", "ID of elevator, overwrite using -id=<newId>")
+	idPtr := flag.String("id", "defaultID", "ID of elevator, overwrite using -id=<newId>")
 	portPtr := flag.Int("port", config.HardwarePortNumber, "Port of the hardware server, overwrite using -port=<newPort>")
 	flag.Parse()
 
@@ -75,6 +75,7 @@ func main() {
 
 	var state elevstate.ElevState
 	var prevState elevstate.ElevState
+	var prevSyncedVariables elevsync.SyncedData
 
 	// For debug
 	i := 0
@@ -88,10 +89,14 @@ func main() {
 				prevState = state
 			}
 		case syncedVariables := <-syncedVariablesC:
+			if syncedVariables.Equals(prevSyncedVariables) {
+				break
+			}
 
 			allStates := append(
 				[]elevsync.OtherElevatorBool{
 					{
+						ID:           id,
 						State:        state,
 						CabCallsBool: syncedVariables.LocalCabCalls,
 					}},
@@ -102,6 +107,7 @@ func main() {
 				HallCallsBool: sequenceassigner.AssignCalls(allStates, syncedVariables.SyncedHallCalls),
 				CabCallsBool:  syncedVariables.LocalCabCalls,
 			}
+			prevSyncedVariables = syncedVariables
 
 		case <-hardwareDisconnectedC:
 			state.MotorStop = true

@@ -1,6 +1,7 @@
 package elevsync
 
 import (
+	"fmt"
 	"reflect"
 	"root/config"
 	"root/elevstate"
@@ -55,7 +56,7 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 	}
 
 	if !elevatorFound {
-		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
+		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls, Alive: true})
 		if len(*OtherElevatorList) > config.NumElevators {
 			panic("Too many elevators in the system:" + strconv.Itoa(len(*OtherElevatorList)) + " " + OtherElevatorList.getIDsString())
 		}
@@ -77,6 +78,9 @@ func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []s
 			(*OtherElevatorList)[i].Version = 0
 		}
 		(*OtherElevatorList)[i].Alive = alive
+		if !alive {
+			fmt.Println("Elevator " + otherElevator.ID + " is dead.")
+		}
 	}
 }
 

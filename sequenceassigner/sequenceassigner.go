@@ -93,10 +93,10 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 	hallRequests := hallCalls
 	states := make(map[string]assignerState)
 
-	// fmt.Println("All hallcalls:")
-	// for _, floor := range hallCalls {
-	// 	fmt.Println(floor[0], floor[1])
-	// }
+	fmt.Println("All hallcalls:")
+	for _, floor := range hallCalls {
+		fmt.Println(floor[0], floor[1])
+	}
 
 	for i := range allStates {
 		tempState := assignerState{
@@ -131,12 +131,12 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 		fmt.Println("Problem with json.Unmarshal: ", err)
 		panic(err)
 	}
-	// for elevnum, elev := range jsonOutput {
-	// 	fmt.Println("Heis nummer:", elevnum)
-	// 	for _, floor := range elev {
-	// 		fmt.Println(floor[0], floor[1])
-	// 	}
-	// }
+	for elevnum, elev := range jsonOutput {
+		fmt.Println("Heis nummer:", elevnum)
+		for _, floor := range elev {
+			fmt.Println(floor[0], floor[1])
+		}
+	}
 	return (jsonOutput)[allStates[0].ID]
 }
 

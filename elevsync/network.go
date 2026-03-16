@@ -167,6 +167,10 @@ func (thisSyncedData *SyncedData) Equals(otherSyncedData SyncedData) bool {
 	} else if thisSyncedData.SyncedHallCalls != otherSyncedData.SyncedHallCalls {
 		return false
 	} else if !reflect.DeepEqual(thisSyncedData.OtherElevatorBoolList, otherSyncedData.OtherElevatorBoolList) {
+		return false
+	} else if len(thisSyncedData.OtherElevatorBoolList) != len(otherSyncedData.OtherElevatorBoolList) {
+		// Not handled by DeepEqual :(, and needed to update main when elevators disconnect as main rejects messages with same data as earlier
+		return false
 	}
 	return true
 }

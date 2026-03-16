@@ -167,23 +167,12 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 		case confirmedCalls := <-callsToElevatorC:
 			drainChannel(callsToElevatorC, &confirmedCalls)
 			hCalls, cCalls = confirmedCalls.HallCallsBool, confirmedCalls.CabCallsBool
+
 			switch state.Behaviour {
 			case elevstate.Moving:
 				break
 			case elevstate.DoorOpen:
-				if cCalls[state.Floor] {
-					cCalls[state.Floor] = false
-					completedCallToSyncC <- state.ToCabCallEvent()
-				}
-				if hCalls[state.Floor][state.Direction] {
-					hCalls[state.Floor][state.Direction] = false
-					completedCallToSyncC <- state.ToHallCallEvent()
-				}
-			case elevstate.Idle:
-				state = sequenceassigner.NextState(hCalls, cCalls, state)
-				switch state.Behaviour {
-				case elevstate.DoorOpen:
-					openDoorC <- true
+				if !state.MotorStop && !state.DoorObstructed {
 					if cCalls[state.Floor] {
 						cCalls[state.Floor] = false
 						completedCallToSyncC <- state.ToCabCallEvent()
@@ -191,6 +180,22 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 					if hCalls[state.Floor][state.Direction] {
 						hCalls[state.Floor][state.Direction] = false
 						completedCallToSyncC <- state.ToHallCallEvent()
+					}
+				}
+			case elevstate.Idle:
+				state = sequenceassigner.NextState(hCalls, cCalls, state)
+				switch state.Behaviour {
+				case elevstate.DoorOpen:
+					openDoorC <- true
+					if !state.MotorStop && !state.DoorObstructed {
+						if cCalls[state.Floor] {
+							cCalls[state.Floor] = false
+							completedCallToSyncC <- state.ToCabCallEvent()
+						}
+						if hCalls[state.Floor][state.Direction] {
+							hCalls[state.Floor][state.Direction] = false
+							completedCallToSyncC <- state.ToHallCallEvent()
+						}
 					}
 				case elevstate.Moving:
 					elevio.SetMotorDirection(state.Direction.ToMD())

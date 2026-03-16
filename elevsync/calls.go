@@ -82,7 +82,7 @@ func (self *Calls) mergeHallCalls(incoming Calls) {
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for btn := 0; btn < 2; btn++ {
 			if incoming.HallCalls[floor][btn].Version > self.HallCalls[floor][btn].Version {
-				self.HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
+				(*self).HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
 			}
 		}
 	}
@@ -104,7 +104,7 @@ func (self *Calls) mergeCabCalls(incomingCabCallsLists []CabCalls) {
 		mergedCabCalls[floor].Version++
 	}
 
-	self.CabCalls = mergedCabCalls
+	(*self).CabCalls = mergedCabCalls
 }
 
 func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList, localState elevstate.ElevState) CallsBool {
@@ -147,13 +147,13 @@ func (self *Calls) addCall(incoming elevio.CallEvent) {
 	switch btn {
 	case elevio.BT_HallUp, elevio.BT_HallDown:
 		if self.HallCalls[floor][btn].NeedService != UnservicedCall {
-			self.HallCalls[floor][btn].NeedService = UnservicedCall
-			self.HallCalls[floor][btn].Version++
+			(*self).HallCalls[floor][btn].NeedService = UnservicedCall
+			(*self).HallCalls[floor][btn].Version++
 		}
 	case elevio.BT_Cab:
 		if self.CabCalls[floor].NeedService != UnservicedCall {
-			self.CabCalls[floor].NeedService = UnservicedCall
-			self.CabCalls[floor].Version++
+			(*self).CabCalls[floor].NeedService = UnservicedCall
+			(*self).CabCalls[floor].Version++
 		}
 	default:
 		panic("Invalid ButtonType " + strconv.Itoa(int(btn)))
@@ -166,13 +166,13 @@ func (self *Calls) removeCall(incoming elevio.CallEvent) {
 	switch btn {
 	case elevio.BT_HallUp, elevio.BT_HallDown:
 		if self.HallCalls[floor][btn].NeedService != ServicedCall {
-			self.HallCalls[floor][btn].NeedService = ServicedCall
-			self.HallCalls[floor][btn].Version++
+			(*self).HallCalls[floor][btn].NeedService = ServicedCall
+			(*self).HallCalls[floor][btn].Version++
 		}
 	case elevio.BT_Cab:
 		if self.CabCalls[floor].NeedService != ServicedCall {
-			self.CabCalls[floor].NeedService = ServicedCall
-			self.CabCalls[floor].Version++
+			(*self).CabCalls[floor].NeedService = ServicedCall
+			(*self).CabCalls[floor].Version++
 		}
 	default:
 		panic("Invalid ButtonType " + strconv.Itoa(int(btn)))

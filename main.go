@@ -29,9 +29,9 @@ func main() {
 	hardwareReconnectedC := make(chan bool, 1024)
 	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors, hardwareDisconnectedC, hardwareReconnectedC)
 
-	fsmStateToMainC := make(chan elevstate.ElevState, 1024)
-	confirmedCallsToElevatorC := make(chan elevsync.CommonCalls, 1024)
-	callsToLightsC := make(chan elevsync.CommonCalls, 1024)
+	localStateToMainC := make(chan elevstate.ElevState, 1024)
+	localCallsToElevatorC := make(chan elevsync.CommonCalls, 1024)
+	commonCallsToLightsC := make(chan elevsync.CommonCalls, 1024)
 
 	hardWareCallToSyncC := make(chan elevio.CallEvent, 1024)
 	completedCallToSyncC := make(chan elevio.CallEvent, 1024)
@@ -46,8 +46,8 @@ func main() {
 	selfDataToNetworkC := make(chan elevsync.NetworkMsg, 1024)
 	alivePeersC := make(chan []string, 1024)
 
-	go elevator.Elevator(fsmStateToMainC, completedCallToSyncC, confirmedCallsToElevatorC, hardwareReconnectedC)
-	go lights.SetLights(callsToLightsC)
+	go elevator.Elevator(localStateToMainC, completedCallToSyncC, localCallsToElevatorC, hardwareReconnectedC)
+	go lights.SetLights(commonCallsToLightsC)
 
 	go network.Network(
 		id,
@@ -86,7 +86,7 @@ func main() {
 	for {
 
 		select {
-		case state = <-fsmStateToMainC:
+		case state = <-localStateToMainC:
 			if state != prevState {
 				localStateToSyncC <- state
 				prevState = state
@@ -96,9 +96,9 @@ func main() {
 				break
 			}
 			prevSyncedVariables = syncedVariables
-			updateElevator(id, state, syncedVariables, callsToElevatorC, callsToLightsC)
+			updateElevator(id, state, syncedVariables, localCallsToElevatorC, commonCallsToLightsC)
 		case <-syncTicker.C:
-			updateElevator(id, state, syncedVariables, callsToElevatorC, callsToLightsC)
+			updateElevator(id, state, syncedVariables, localCallsToElevatorC, commonCallsToLightsC)
 		case <-hardwareDisconnectedC:
 			state.MotorStop = true
 			localStateToSyncC <- state
@@ -110,8 +110,8 @@ func updateElevator(
 	id string,
 	state elevstate.ElevState,
 	synced elevsync.SyncedData,
-	callsToElevatorC chan<- elevsync.CommonCalls,
-	callsToLightsC chan<- elevsync.CommonCalls,
+	localCallsToElevatorC chan<- elevsync.CommonCalls,
+	commonCallsToLightsC chan<- elevsync.CommonCalls,
 ) {
 
 	allStates := append(
@@ -125,12 +125,12 @@ func updateElevator(
 		synced.OtherElevatorBoolList...,
 	)
 
-	callsToElevatorC <- elevsync.CommonCalls{
+	localCallsToElevatorC <- elevsync.CommonCalls{
 		HallCalls: sequenceassigner.AssignCalls(allStates, synced.SyncedHallCalls),
 		CabCalls:  synced.LocalCabCalls,
 	}
 
-	callsToLightsC <- elevsync.CommonCalls{
+	commonCallsToLightsC <- elevsync.CommonCalls{
 		HallCalls: synced.SyncedHallCalls,
 		CabCalls:  synced.LocalCabCalls,
 	}

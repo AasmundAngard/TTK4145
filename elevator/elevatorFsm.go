@@ -57,23 +57,27 @@ func requestsBelow(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsB
 	return false
 }
 
-func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC chan<- elevio.CallEvent, confirmedCallsToElevatorC <-chan elevsync.CommonCalls, hardwareReconnectedC <-chan bool) {
+func Elevator(
+	localStateToMainC chan<- elevstate.ElevState,
+	completedCallToSyncC chan<- elevio.CallEvent,
+	localCallsToElevatorC <-chan elevsync.CommonCalls,
+	hardwareReconnectedC <-chan bool,
+) {
 
+	floorReachedC := make(chan int, 16)
+	openDoorC := make(chan bool, 16)
+	doorClosedC := make(chan bool, 16)
+	doorObstructedC := make(chan bool, 16)
 	stopButtonC := make(chan bool, 16)
-	floorSensorC := make(chan int, 1)
-	openDoorC := make(chan bool, 1)
-	doorClosedC := make(chan bool, 1)
-	doorObstructedC := make(chan bool, 1)
 
 	go elevio.PollStopButton(stopButtonC)
-	go elevio.PollFloorSensor(floorSensorC)
+	go elevio.PollFloorSensor(floorReachedC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
 
 	var hCalls elevsync.HallCallsBool
 	var cCalls elevsync.CabCallsBool
 
 	var state elevstate.ElevState
-	var prevState elevstate.ElevState
 	state.Behaviour = elevstate.Idle
 	state.Direction = elevstate.Down
 
@@ -87,23 +91,21 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 	floor := elevio.GetFloor()
 	fmt.Println("startfloor:", floor)
 	if floor != -1 {
-		state.Floor = <-floorSensorC
+		state.Floor = <-floorReachedC
 
 	} else {
 		elevio.SetMotorDirection(state.Direction.ToMD())
-		state.Floor = <-floorSensorC
+		state.Floor = <-floorReachedC
 		elevio.SetMotorDirection(elevio.MD_Stop)
 	}
 	elevio.SetFloorIndicator(state.Floor)
 	var i int = 0 // Debugging
-	prevState = state
-	prevState.Direction = state.Direction.Opposite()
-	fsmStateToMainC <- state
+	localStateToMainC <- state
 
 	for {
 
 		select {
-		case newFloor := <-floorSensorC:
+		case newFloor := <-floorReachedC:
 			switch state.Behaviour {
 			case elevstate.Moving:
 				state.Floor = newFloor
@@ -173,9 +175,9 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 				fmt.Println("Illegal state:", strconv.Itoa(int(state.Behaviour)))
 				state.Behaviour = elevstate.Idle
 			}
-		case confirmedCalls := <-confirmedCallsToElevatorC:
-			drainChannel(confirmedCallsToElevatorC, &confirmedCalls)
-			hCalls, cCalls = confirmedCalls.HallCalls, confirmedCalls.CabCalls
+		case localCalls := <-localCallsToElevatorC:
+			drainChannel(localCallsToElevatorC, &localCalls)
+			hCalls, cCalls = localCalls.HallCalls, localCalls.CabCalls
 
 			switch state.Behaviour {
 			case elevstate.Moving:
@@ -217,10 +219,10 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 				elevio.SetMotorDirection(state.Direction.ToMD())
 				motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 			}
-		case doorIsObstructed := <-doorObstructedC:
-			state.DoorObstructed = doorIsObstructed
+		case doorObstructed := <-doorObstructedC:
+			state.DoorObstructed = doorObstructed
 		case <-hardwareReconnectedC:
-			fmt.Println("reconnected")
+			fmt.Println("hardware reconnected")
 			elevio.SetMotorDirection(elevio.MD_Stop)
 			currentFloor := elevio.GetFloor()
 			switch {
@@ -243,7 +245,7 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 			fmt.Println("fsm", i, "state:", state.Floor, state.Direction, state.Behaviour)
 		}
 
-		fsmStateToMainC <- state
+		localStateToMainC <- state
 	}
 
 }

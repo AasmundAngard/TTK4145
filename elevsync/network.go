@@ -28,60 +28,46 @@ type OtherElevatorBool struct {
 	CabCallsBool CabCallsBool
 }
 
-func (OtherElevatorList *OtherElevatorList) handleReconnect(localCalls *Calls, prevAlivePeers []string) {
-	// When a peer reconnects to the network (including self), and has version number > 0 for network msg,
-	// all version numbers are set to the highest version + 1 for each call
-
-	// When version numbers are equal but needService inequal, the call is set to needService = true to account for any
-	// possibly real calls with lower version number
-
-	// Potential issue: prevAlivePeers starts as nil/empty, so on the first alivePeersC update,
-	// any currently-alive peer will be treated as “reconnected”, triggering a normalization once at startup.
-
-	disconnectElevatorID := ""
-
-	// Find the reconnected elevator's id
+func (OtherElevatorList *OtherElevatorList) detectReconnect(prevAlivePeers []string) bool {
 	for _, otherElevator := range *OtherElevatorList {
 		if otherElevator.Alive == true && otherElevator.Version > 0 && slices.Contains(prevAlivePeers, otherElevator.ID) == false {
-
-			disconnectElevatorID = otherElevator.ID
-			break
+			return true
 		}
 	}
+	return false
+}
 
-	// Find the highest version number and needService for each call from other elevators
-	if disconnectElevatorID != "" {
-		for floor := 0; floor < config.NumFloors; floor++ {
-			for btn := 0; btn < 2; btn++ {
+func (self *Calls) mergeHallCallsForgiving(OtherElevatorList *OtherElevatorList) {
+	for floor := 0; floor < config.NumFloors; floor++ {
+		for btn := 0; btn < 2; btn++ {
 
-				maxVersion := int64(0)
-				needService := false
+			maxVersion := int64(0)
+			needService := false
 
-				for _, otherElevator := range *OtherElevatorList {
-					if maxVersion < otherElevator.Calls.HallCalls[floor][btn].Version && otherElevator.Alive == true {
-						maxVersion = otherElevator.Calls.HallCalls[floor][btn].Version
-					}
-					if otherElevator.Calls.HallCalls[floor][btn].NeedService == true && otherElevator.Alive == true {
-						needService = true
-					}
+			for _, otherElevator := range *OtherElevatorList {
+				if maxVersion < otherElevator.Calls.HallCalls[floor][btn].Version && otherElevator.Alive == true {
+					maxVersion = otherElevator.Calls.HallCalls[floor][btn].Version
 				}
-
-				// Check self as well, and update version number and needService for the elevators.
-				if maxVersion < localCalls.HallCalls[floor][btn].Version {
-					maxVersion = localCalls.HallCalls[floor][btn].Version
-				}
-				localCalls.HallCalls[floor][btn].Version = maxVersion + 1
-
-				if localCalls.HallCalls[floor][btn].NeedService == true {
+				if otherElevator.Calls.HallCalls[floor][btn].NeedService == true && otherElevator.Alive == true {
 					needService = true
 				}
-				localCalls.HallCalls[floor][btn].NeedService = needService
+			}
 
-				for i, otherElevator := range *OtherElevatorList {
-					if otherElevator.Alive == true {
-						(*OtherElevatorList)[i].Calls.HallCalls[floor][btn].Version = maxVersion + 1
-						(*OtherElevatorList)[i].Calls.HallCalls[floor][btn].NeedService = needService
-					}
+			// Check self as well, and update version number and needService for the elevators.
+			if maxVersion < self.HallCalls[floor][btn].Version {
+				maxVersion = self.HallCalls[floor][btn].Version
+			}
+			(*self).HallCalls[floor][btn].Version = maxVersion + 1
+
+			if self.HallCalls[floor][btn].NeedService == true {
+				needService = true
+			}
+			(*self).HallCalls[floor][btn].NeedService = needService
+
+			for i, otherElevator := range *OtherElevatorList {
+				if otherElevator.Alive == true {
+					(*OtherElevatorList)[i].Calls.HallCalls[floor][btn].Version = maxVersion + 1
+					(*OtherElevatorList)[i].Calls.HallCalls[floor][btn].NeedService = needService
 				}
 			}
 		}

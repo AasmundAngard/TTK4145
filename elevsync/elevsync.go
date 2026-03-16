@@ -52,9 +52,11 @@ func Sync(id string,
 		case alivePeersList := <-alivePeersC:
 			OtherElevatorList.updateAliveStatus(alivePeersList)
 
-			OtherElevatorList.handleReconnect(&localCalls, prevAlivePeers)
+			if OtherElevatorList.detectReconnect(prevAlivePeers) == true {
+				localCalls.mergeHallCallsForgiving(&OtherElevatorList)
+			}
 
-			prevAlivePeers = alivePeersList
+			copy(prevAlivePeers, alivePeersList)
 
 			//Edge case: This elevator has requested its cab calls and receives them
 		case incomingCabCallsList := <-selfCabCallsToSyncC:

@@ -20,8 +20,8 @@ const timeout = 1 * time.Second
 func Transmitter(port int, id string, transmitEnable <-chan bool) {
 
 	conn := conn.DialBroadcastUDP(port)
-	//addr, _ := net.ResolveUDPAddr("udp4", fmt.Sprintf("255.255.255.255:%d", port))
-	addr, _ := net.ResolveUDPAddr("udp4", fmt.Sprintf("192.168.137.255:%d", port))
+	addr, _ := net.ResolveUDPAddr("udp4", fmt.Sprintf("255.255.255.255:%d", port))
+	// addr, _ := net.ResolveUDPAddr("udp4", fmt.Sprintf("192.168.137.255:%d", port))
 
 	enable := true
 	for {

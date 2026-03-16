@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"root/config"
 	"root/elevstate"
+	"slices"
 	"strconv"
 )
 
@@ -27,6 +28,52 @@ type OtherElevatorBool struct {
 	ID           string
 	State        elevstate.ElevState
 	CabCallsBool CabCallsBool
+}
+
+func (OtherElevatorList *OtherElevatorList) detectReconnect(prevAlivePeers []string) bool {
+	for _, otherElevator := range *OtherElevatorList {
+		if otherElevator.Alive == true && otherElevator.Version > 0 && slices.Contains(prevAlivePeers, otherElevator.ID) == false {
+			return true
+		}
+	}
+	return false
+}
+
+func (self *Calls) mergeHallCallsForgiving(OtherElevatorList *OtherElevatorList) {
+	for floor := 0; floor < config.NumFloors; floor++ {
+		for btn := 0; btn < 2; btn++ {
+
+			maxVersion := int64(0)
+			needService := false
+
+			for _, otherElevator := range *OtherElevatorList {
+				if maxVersion < otherElevator.Calls.HallCalls[floor][btn].Version && otherElevator.Alive == true {
+					maxVersion = otherElevator.Calls.HallCalls[floor][btn].Version
+				}
+				if otherElevator.Calls.HallCalls[floor][btn].NeedService == true && otherElevator.Alive == true {
+					needService = true
+				}
+			}
+
+			// Check self as well, and update version number and needService for the elevators.
+			if maxVersion < self.HallCalls[floor][btn].Version {
+				maxVersion = self.HallCalls[floor][btn].Version
+			}
+			(*self).HallCalls[floor][btn].Version = maxVersion + 1
+
+			if self.HallCalls[floor][btn].NeedService == true {
+				needService = true
+			}
+			(*self).HallCalls[floor][btn].NeedService = needService
+
+			for i, otherElevator := range *OtherElevatorList {
+				if otherElevator.Alive == true {
+					(*OtherElevatorList)[i].Calls.HallCalls[floor][btn].Version = maxVersion + 1
+					(*OtherElevatorList)[i].Calls.HallCalls[floor][btn].NeedService = needService
+				}
+			}
+		}
+	}
 }
 
 func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID string) CabCalls {
@@ -72,10 +119,6 @@ func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []s
 				alive = true
 				break
 			}
-			// Sus, should reset Version when dead, but not disconnect????
-			(*OtherElevatorList)[i].Version = 0
-			// Sus, should reset Version when dead, but not disconnect????
-			(*OtherElevatorList)[i].Version = 0
 		}
 		(*OtherElevatorList)[i].Alive = alive
 		if !alive {
@@ -99,6 +142,7 @@ func (OtherElevatorList OtherElevatorList) workingElevsOnlyToBool() []OtherEleva
 func (OtherElevatorList OtherElevatorList) getIDsString() string {
 	var IDs string
 
+	//Inneficient, but only used for debug
 	for _, otherElevator := range OtherElevatorList {
 		IDs += otherElevator.ID + " "
 	}

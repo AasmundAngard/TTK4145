@@ -27,6 +27,8 @@ func Sync(id string,
 
 	var NetworkMsgVersion int64 = 0
 
+	var prevAlivePeers []string
+
 	for {
 		select {
 		case incomingHardwareCall := <-hardwareCallC:
@@ -49,6 +51,12 @@ func Sync(id string,
 
 		case alivePeersList := <-alivePeersC:
 			OtherElevatorList.updateAliveStatus(alivePeersList)
+
+			if OtherElevatorList.detectReconnect(prevAlivePeers) == true {
+				localCalls.mergeHallCallsForgiving(&OtherElevatorList)
+			}
+
+			copy(prevAlivePeers, alivePeersList)
 
 			//Edge case: This elevator has requested its cab calls and receives them
 		case incomingCabCallsList := <-selfCabCallsToSyncC:

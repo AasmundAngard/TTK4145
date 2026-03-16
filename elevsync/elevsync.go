@@ -6,10 +6,10 @@ import (
 )
 
 func Sync(id string,
-	hardwareCallC <-chan elevio.CallEvent,
-	completedCallC <-chan elevio.CallEvent,
-	localStateC <-chan elevstate.ElevState,
-	syncedVariablesC chan<- SyncedData,
+	hardwareCallToSyncC <-chan elevio.CallEvent,
+	completedCallToSyncC <-chan elevio.CallEvent,
+	localStateToSyncC <-chan elevstate.ElevState,
+	syncedVariablesToMainC chan<- SyncedData,
 	otherDataToSyncC <-chan NetworkMsg,
 	otherCabCallsRequestC <-chan string,
 	otherCabCallsToNetworkC chan<- CabCalls,
@@ -31,13 +31,13 @@ func Sync(id string,
 
 	for {
 		select {
-		case incomingHardwareCall := <-hardwareCallC:
+		case incomingHardwareCall := <-hardwareCallToSyncC:
 			localCalls.addCall(incomingHardwareCall)
 
-		case incomingFinishedCall := <-completedCallC:
+		case incomingFinishedCall := <-completedCallToSyncC:
 			localCalls.removeCall(incomingFinishedCall)
 
-		case incomingLocalState := <-localStateC:
+		case incomingLocalState := <-localStateToSyncC:
 			localState = incomingLocalState
 
 		case incomingNetworkMsg := <-otherDataToSyncC:
@@ -53,17 +53,23 @@ func Sync(id string,
 			OtherElevatorList.updateAliveStatus(alivePeersList)
 
 			if OtherElevatorList.detectReconnect(prevAlivePeers) == true {
+
+				NetworkMsgVersion = OtherElevatorList.updateSelfInOthersAndOthersInSelf(alivePeersList, otherDataToSyncC, networkRequestSelfDataC, selfDataToNetworkC, NetworkMsgVersion, id, &localCalls, &localState)
+
 				localCalls.mergeHallCallsForgiving(&OtherElevatorList)
+				//print("Merging calls forgivingly")
 			}
 
 			copy(prevAlivePeers, alivePeersList)
 
 			//Edge case: This elevator has requested its cab calls and receives them
 		case incomingCabCallsList := <-selfCabCallsToSyncC:
+			//print("Received calls")
 			localCalls.mergeCabCalls(incomingCabCallsList)
 
 			//Edge case: Another elevator is requesting its cab calls from this elevator
 		case ID := <-otherCabCallsRequestC:
+			//print("Request calls")
 			otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromID(ID)
 			continue
 		}
@@ -72,6 +78,6 @@ func Sync(id string,
 
 		syncedData.format(confirmedCalls, OtherElevatorList)
 
-		syncedVariablesC <- syncedData
+		syncedVariablesToMainC <- syncedData
 	}
 }

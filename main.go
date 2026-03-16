@@ -78,10 +78,10 @@ func main() {
 
 	var state elevstate.ElevState
 	var prevState elevstate.ElevState
+	var syncedVariables elevsync.SyncedData
 	var prevSyncedVariables elevsync.SyncedData
 
-	// For debug
-	i := 0
+	syncTicker := time.NewTicker(config.SyncTimeout)
 
 	for {
 
@@ -91,39 +91,47 @@ func main() {
 				localStateToSyncC <- state
 				prevState = state
 			}
-		case syncedVariables := <-syncedVariablesToMainC:
+		case syncedVariables = <-syncedVariablesToMainC:
 			if syncedVariables.Equals(prevSyncedVariables) {
 				break
 			}
-
-			allStates := append(
-				[]elevsync.OtherElevatorBool{
-					{
-						ID:           id,
-						State:        state,
-						CabCallsBool: syncedVariables.LocalCabCalls,
-					}},
-				syncedVariables.OtherElevatorBoolList...,
-			)
-
-			confirmedCallsToElevatorC <- elevsync.CommonCalls{
-				HallCalls: sequenceassigner.AssignCalls(allStates, syncedVariables.SyncedHallCalls),
-				CabCalls:  syncedVariables.LocalCabCalls,
-			}
-			callsToLightsC <- elevsync.CommonCalls{
-				HallCalls: syncedVariables.SyncedHallCalls,
-				CabCalls:  syncedVariables.LocalCabCalls,
-			}
 			prevSyncedVariables = syncedVariables
-
+			updateElevator(id, state, syncedVariables, callsToElevatorC, callsToLightsC)
+		case <-syncTicker.C:
+			updateElevator(id, state, syncedVariables, callsToElevatorC, callsToLightsC)
 		case <-hardwareDisconnectedC:
 			state.MotorStop = true
 			localStateToSyncC <- state
-
-		// Debug to monitor state and alive
-		case <-time.After(3 * time.Second):
-			i++
-			fmt.Println("main", i, "state:", state.Floor, state.Direction, state.Behaviour)
 		}
+	}
+}
+
+func updateElevator(
+	id string,
+	state elevstate.ElevState,
+	synced elevsync.SyncedData,
+	callsToElevatorC chan<- elevsync.CommonCalls,
+	callsToLightsC chan<- elevsync.CommonCalls,
+) {
+
+	allStates := append(
+		[]elevsync.OtherElevatorBool{
+			{
+				ID:           id,
+				State:        state,
+				CabCallsBool: synced.LocalCabCalls,
+			},
+		},
+		synced.OtherElevatorBoolList...,
+	)
+
+	callsToElevatorC <- elevsync.CommonCalls{
+		HallCalls: sequenceassigner.AssignCalls(allStates, synced.SyncedHallCalls),
+		CabCalls:  synced.LocalCabCalls,
+	}
+
+	callsToLightsC <- elevsync.CommonCalls{
+		HallCalls: synced.SyncedHallCalls,
+		CabCalls:  synced.LocalCabCalls,
 	}
 }

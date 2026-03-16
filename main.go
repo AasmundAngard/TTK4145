@@ -8,6 +8,7 @@ import (
 	"root/elevio"
 	"root/elevstate"
 	"root/elevsync"
+	"root/lights"
 	"root/network"
 	"root/sequenceassigner"
 	"strconv"
@@ -29,7 +30,9 @@ func main() {
 	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors, hardwareDisconnectedC, hardwareReconnectedC)
 
 	fsmStateC := make(chan elevstate.ElevState, 1024)
-	callsToElevatorC := make(chan elevsync.CallsBool, 1024)
+	callsToElevatorC := make(chan elevsync.CommonCalls, 1024)
+
+	callsToLightsC := make(chan elevsync.CommonCalls, 1024)
 
 	hardWareCallC := make(chan elevio.CallEvent, 1024)
 	completedCallC := make(chan elevio.CallEvent, 1024)
@@ -45,6 +48,7 @@ func main() {
 	alivePeersC := make(chan []string, 1024)
 
 	go elevator.Elevator(fsmStateC, completedCallC, callsToElevatorC, hardwareReconnectedC)
+	go lights.SetLights(callsToLightsC)
 
 	go network.Network(
 		id,
@@ -103,9 +107,13 @@ func main() {
 				syncedVariables.OtherElevatorBoolList...,
 			)
 
-			callsToElevatorC <- elevsync.CallsBool{
-				HallCallsBool: sequenceassigner.AssignCalls(allStates, syncedVariables.SyncedHallCalls),
-				CabCallsBool:  syncedVariables.LocalCabCalls,
+			callsToElevatorC <- elevsync.CommonCalls{
+				HallCalls: sequenceassigner.AssignCalls(allStates, syncedVariables.SyncedHallCalls),
+				CabCalls:  syncedVariables.LocalCabCalls,
+			}
+			callsToLightsC <- elevsync.CommonCalls{
+				HallCalls: syncedVariables.SyncedHallCalls,
+				CabCalls:  syncedVariables.LocalCabCalls,
 			}
 			prevSyncedVariables = syncedVariables
 

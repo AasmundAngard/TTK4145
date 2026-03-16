@@ -22,7 +22,7 @@ func Sync(id string,
 	var localState elevstate.ElevState
 	var OtherElevatorList OtherElevatorList
 
-	var confirmedCalls CallsBool
+	var confirmedCalls CommonCalls
 	var syncedData SyncedData
 
 	var NetworkMsgVersion int64 = 0

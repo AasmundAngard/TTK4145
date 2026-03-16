@@ -156,9 +156,9 @@ type SyncedData struct {
 	OtherElevatorBoolList []OtherElevatorBool
 }
 
-func (syncedData *SyncedData) format(confirmedCalls CallsBool, OtherElevatorList OtherElevatorList) {
-	syncedData.LocalCabCalls = confirmedCalls.CabCallsBool
-	syncedData.SyncedHallCalls = confirmedCalls.HallCallsBool
+func (syncedData *SyncedData) format(confirmedCalls CommonCalls, OtherElevatorList OtherElevatorList) {
+	syncedData.LocalCabCalls = confirmedCalls.CabCalls
+	syncedData.SyncedHallCalls = confirmedCalls.HallCalls
 	syncedData.OtherElevatorBoolList = OtherElevatorList.workingElevsOnlyToBool()
 }
 func (thisSyncedData *SyncedData) Equals(otherSyncedData SyncedData) bool {

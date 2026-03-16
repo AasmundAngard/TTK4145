@@ -9,7 +9,7 @@ import (
 
 type Call struct {
 	NeedService bool
-	TimeStamp   int64
+	Version     int64
 }
 
 const (
@@ -49,16 +49,16 @@ func newCabCalls() CabCalls {
 	var cabCalls CabCalls
 	for floor := 0; floor < config.NumFloors; floor++ {
 		cabCalls[floor].NeedService = false
-		cabCalls[floor].TimeStamp = 0
+		cabCalls[floor].Version = 0
 	}
 	return cabCalls
 }
 
 type HallCallsBool [config.NumFloors][2]bool
 type CabCallsBool [config.NumFloors]bool
-type CallsBool struct {
-	HallCallsBool HallCallsBool
-	CabCallsBool  CabCallsBool
+type CommonCalls struct {
+	HallCalls HallCallsBool
+	CabCalls  CabCallsBool
 }
 
 func (h HallCallsBool) HasCalls() bool {
@@ -81,8 +81,8 @@ func (h CabCallsBool) HasCalls() bool {
 func (self *Calls) mergeHallCalls(incoming Calls) {
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for btn := 0; btn < 2; btn++ {
-			if incoming.HallCalls[floor][btn].TimeStamp > self.HallCalls[floor][btn].TimeStamp {
-				self.HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
+			if incoming.HallCalls[floor][btn].Version > self.HallCalls[floor][btn].Version {
+				(*self).HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
 			}
 		}
 	}
@@ -93,7 +93,7 @@ func (self *Calls) mergeCabCalls(incomingCabCallsLists []CabCalls) {
 
 	for _, cabCalls := range incomingCabCallsLists {
 		for floor := 0; floor < config.NumFloors; floor++ {
-			if cabCalls[floor].TimeStamp > mergedCabCalls[floor].TimeStamp {
+			if cabCalls[floor].Version > mergedCabCalls[floor].Version {
 				mergedCabCalls[floor] = cabCalls[floor]
 			}
 		}
@@ -101,16 +101,16 @@ func (self *Calls) mergeCabCalls(incomingCabCallsLists []CabCalls) {
 
 	for floor := 0; floor < config.NumFloors; floor++ {
 		mergedCabCalls[floor].NeedService = mergedCabCalls[floor].NeedService || self.CabCalls[floor].NeedService
-		mergedCabCalls[floor].TimeStamp++
+		mergedCabCalls[floor].Version++
 	}
 
-	self.CabCalls = mergedCabCalls
+	(*self).CabCalls = mergedCabCalls
 }
 
-func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList, localState elevstate.ElevState) CallsBool {
-	var confirmedCalls CallsBool
-	confirmedCalls.HallCallsBool = self.HallCalls.toBool()
-	confirmedCalls.CabCallsBool = self.CabCalls.toBool()
+func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList, localState elevstate.ElevState) CommonCalls {
+	var confirmedCalls CommonCalls
+	confirmedCalls.HallCalls = self.HallCalls.toBool()
+	confirmedCalls.CabCalls = self.CabCalls.toBool()
 
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for btn := 0; btn < 2; btn++ {
@@ -124,16 +124,16 @@ func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList, localSt
 					continue
 				}
 
-				if otherElevator.Calls.HallCalls[floor][btn].NeedService == false || otherElevator.Calls.HallCalls[floor][btn].TimeStamp != self.HallCalls[floor][btn].TimeStamp {
-					// If the other elevator does not have the same call or has a different timestamp, we do not confirm it
+				if otherElevator.Calls.HallCalls[floor][btn].NeedService == false || otherElevator.Calls.HallCalls[floor][btn].Version != self.HallCalls[floor][btn].Version {
+					// If the other elevator does not have the same call or has a different version, we do not confirm it
 					confirmed = false
-					confirmedCalls.HallCallsBool[floor][btn] = false
+					confirmedCalls.HallCalls[floor][btn] = false
 					break
 				}
 			}
 
 			if confirmed {
-				confirmedCalls.HallCallsBool[floor][btn] = true
+				confirmedCalls.HallCalls[floor][btn] = true
 			}
 		}
 	}
@@ -147,13 +147,13 @@ func (self *Calls) addCall(incoming elevio.CallEvent) {
 	switch btn {
 	case elevio.BT_HallUp, elevio.BT_HallDown:
 		if self.HallCalls[floor][btn].NeedService != UnservicedCall {
-			self.HallCalls[floor][btn].NeedService = UnservicedCall
-			self.HallCalls[floor][btn].TimeStamp++
+			(*self).HallCalls[floor][btn].NeedService = UnservicedCall
+			(*self).HallCalls[floor][btn].Version++
 		}
 	case elevio.BT_Cab:
 		if self.CabCalls[floor].NeedService != UnservicedCall {
-			self.CabCalls[floor].NeedService = UnservicedCall
-			self.CabCalls[floor].TimeStamp++
+			(*self).CabCalls[floor].NeedService = UnservicedCall
+			(*self).CabCalls[floor].Version++
 		}
 	default:
 		panic("Invalid ButtonType " + strconv.Itoa(int(btn)))
@@ -166,13 +166,13 @@ func (self *Calls) removeCall(incoming elevio.CallEvent) {
 	switch btn {
 	case elevio.BT_HallUp, elevio.BT_HallDown:
 		if self.HallCalls[floor][btn].NeedService != ServicedCall {
-			self.HallCalls[floor][btn].NeedService = ServicedCall
-			self.HallCalls[floor][btn].TimeStamp++
+			(*self).HallCalls[floor][btn].NeedService = ServicedCall
+			(*self).HallCalls[floor][btn].Version++
 		}
 	case elevio.BT_Cab:
 		if self.CabCalls[floor].NeedService != ServicedCall {
-			self.CabCalls[floor].NeedService = ServicedCall
-			self.CabCalls[floor].TimeStamp++
+			(*self).CabCalls[floor].NeedService = ServicedCall
+			(*self).CabCalls[floor].Version++
 		}
 	default:
 		panic("Invalid ButtonType " + strconv.Itoa(int(btn)))

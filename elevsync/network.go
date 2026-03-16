@@ -1,9 +1,11 @@
 package elevsync
 
 import (
+	"fmt"
 	"reflect"
 	"root/config"
 	"root/elevstate"
+	"slices"
 	"strconv"
 )
 
@@ -26,6 +28,52 @@ type OtherElevatorBool struct {
 	ID           string
 	State        elevstate.ElevState
 	CabCallsBool CabCallsBool
+}
+
+func (OtherElevatorList *OtherElevatorList) detectReconnect(prevAlivePeers []string) bool {
+	for _, otherElevator := range *OtherElevatorList {
+		if otherElevator.Alive == true && otherElevator.Version > 0 && slices.Contains(prevAlivePeers, otherElevator.ID) == false {
+			return true
+		}
+	}
+	return false
+}
+
+func (self *Calls) mergeHallCallsForgiving(OtherElevatorList *OtherElevatorList) {
+	for floor := 0; floor < config.NumFloors; floor++ {
+		for btn := 0; btn < 2; btn++ {
+
+			maxVersion := int64(0)
+			needService := false
+
+			for _, otherElevator := range *OtherElevatorList {
+				if maxVersion < otherElevator.Calls.HallCalls[floor][btn].Version && otherElevator.Alive == true {
+					maxVersion = otherElevator.Calls.HallCalls[floor][btn].Version
+				}
+				if otherElevator.Calls.HallCalls[floor][btn].NeedService == true && otherElevator.Alive == true {
+					needService = true
+				}
+			}
+
+			// Check self as well, and update version number and needService for the elevators.
+			if maxVersion < self.HallCalls[floor][btn].Version {
+				maxVersion = self.HallCalls[floor][btn].Version
+			}
+			(*self).HallCalls[floor][btn].Version = maxVersion + 1
+
+			if self.HallCalls[floor][btn].NeedService == true {
+				needService = true
+			}
+			(*self).HallCalls[floor][btn].NeedService = needService
+
+			for i, otherElevator := range *OtherElevatorList {
+				if otherElevator.Alive == true {
+					(*OtherElevatorList)[i].Calls.HallCalls[floor][btn].Version = maxVersion + 1
+					(*OtherElevatorList)[i].Calls.HallCalls[floor][btn].NeedService = needService
+				}
+			}
+		}
+	}
 }
 
 func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID string) CabCalls {
@@ -55,7 +103,7 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 	}
 
 	if !elevatorFound {
-		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls})
+		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls, Alive: true})
 		if len(*OtherElevatorList) > config.NumElevators {
 			panic("Too many elevators in the system:" + strconv.Itoa(len(*OtherElevatorList)) + " " + OtherElevatorList.getIDsString())
 		}
@@ -71,12 +119,11 @@ func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []s
 				alive = true
 				break
 			}
-			// Sus, should reset Version when dead, but not disconnect????
-			(*OtherElevatorList)[i].Version = 0
-			// Sus, should reset Version when dead, but not disconnect????
-			(*OtherElevatorList)[i].Version = 0
 		}
 		(*OtherElevatorList)[i].Alive = alive
+		if !alive {
+			fmt.Println("Elevator " + otherElevator.ID + " is dead.")
+		}
 	}
 }
 
@@ -95,6 +142,7 @@ func (OtherElevatorList OtherElevatorList) workingElevsOnlyToBool() []OtherEleva
 func (OtherElevatorList OtherElevatorList) getIDsString() string {
 	var IDs string
 
+	//Inneficient, but only used for debug
 	for _, otherElevator := range OtherElevatorList {
 		IDs += otherElevator.ID + " "
 	}
@@ -108,9 +156,9 @@ type SyncedData struct {
 	OtherElevatorBoolList []OtherElevatorBool
 }
 
-func (syncedData *SyncedData) format(confirmedCalls CallsBool, OtherElevatorList OtherElevatorList) {
-	syncedData.LocalCabCalls = confirmedCalls.CabCallsBool
-	syncedData.SyncedHallCalls = confirmedCalls.HallCallsBool
+func (syncedData *SyncedData) format(confirmedCalls CommonCalls, OtherElevatorList OtherElevatorList) {
+	syncedData.LocalCabCalls = confirmedCalls.CabCalls
+	syncedData.SyncedHallCalls = confirmedCalls.HallCalls
 	syncedData.OtherElevatorBoolList = OtherElevatorList.workingElevsOnlyToBool()
 }
 func (thisSyncedData *SyncedData) Equals(otherSyncedData SyncedData) bool {
@@ -119,6 +167,10 @@ func (thisSyncedData *SyncedData) Equals(otherSyncedData SyncedData) bool {
 	} else if thisSyncedData.SyncedHallCalls != otherSyncedData.SyncedHallCalls {
 		return false
 	} else if !reflect.DeepEqual(thisSyncedData.OtherElevatorBoolList, otherSyncedData.OtherElevatorBoolList) {
+		return false
+	} else if len(thisSyncedData.OtherElevatorBoolList) != len(otherSyncedData.OtherElevatorBoolList) {
+		// Not handled by DeepEqual :(, and needed to update main when elevators disconnect as main rejects messages with same data as earlier
+		return false
 	}
 	return true
 }

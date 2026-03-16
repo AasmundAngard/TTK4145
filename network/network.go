@@ -51,7 +51,6 @@ func broadcastState(stateTxC chan<- elevsync.NetworkMsg, requestStatusC chan<- s
 
 		status := <-selfDataToNetworkC
 
-		status.Version += 1
 		stateTxC <- status
 		time.Sleep(config.BroadcastTime)
 	}

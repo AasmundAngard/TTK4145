@@ -93,7 +93,15 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 	hallRequests := hallCalls
 	states := make(map[string]assignerState)
 
+	fmt.Println("All hallcalls:")
+	for _, floor := range hallCalls {
+		fmt.Println(floor[0], floor[1])
+	}
+
 	for i := range allStates {
+		if allStates[i].State.MotorStop || allStates[i].State.DoorObstructed {
+			continue
+		}
 		tempState := assignerState{
 			Behaviour:   allStates[i].State.Behaviour.String(),
 			Floor:       allStates[i].State.Floor,
@@ -126,12 +134,12 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 		fmt.Println("Problem with json.Unmarshal: ", err)
 		panic(err)
 	}
-	// for elevnum, elev := range jsonOutput {
-	// 	fmt.Println("Heis nummer:", elevnum)
-	// 	for _, floor := range elev {
-	// 		fmt.Println(floor[0], floor[1])
-	// 	}
-	// }
+	for elevnum, elev := range jsonOutput {
+		fmt.Println("Heis nummer:", elevnum)
+		for _, floor := range elev {
+			fmt.Println(floor[0], floor[1])
+		}
+	}
 	return (jsonOutput)[allStates[0].ID]
 }
 

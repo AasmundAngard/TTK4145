@@ -28,13 +28,13 @@ func main() {
 	hardwareReconnectedC := make(chan bool, 1024)
 	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors, hardwareDisconnectedC, hardwareReconnectedC)
 
-	fsmStateC := make(chan elevstate.ElevState, 1024)
-	callsToElevatorC := make(chan elevsync.CallsBool, 1024)
+	fsmStateToMainC := make(chan elevstate.ElevState, 1024)
+	confirmedCallsToElevatorC := make(chan elevsync.CallsBool, 1024)
 
-	hardWareCallC := make(chan elevio.CallEvent, 1024)
-	completedCallC := make(chan elevio.CallEvent, 1024)
-	localStateC := make(chan elevstate.ElevState, 1024)
-	syncedVariablesC := make(chan elevsync.SyncedData, 1024)
+	hardWareCallToSyncC := make(chan elevio.CallEvent, 1024)
+	completedCallToSyncC := make(chan elevio.CallEvent, 1024)
+	localStateToSyncC := make(chan elevstate.ElevState, 1024)
+	syncedVariablesToMainC := make(chan elevsync.SyncedData, 1024)
 	otherDataToSyncC := make(chan elevsync.NetworkMsg, 1024)
 
 	otherCabCallsRequestC := make(chan string, 1024)
@@ -44,7 +44,7 @@ func main() {
 	selfDataToNetworkC := make(chan elevsync.NetworkMsg, 1024)
 	alivePeersC := make(chan []string, 1024)
 
-	go elevator.Elevator(fsmStateC, completedCallC, callsToElevatorC, hardwareReconnectedC)
+	go elevator.Elevator(fsmStateToMainC, completedCallToSyncC, confirmedCallsToElevatorC, hardwareReconnectedC)
 
 	go network.Network(
 		id,
@@ -57,13 +57,13 @@ func main() {
 		selfCabCallsToSyncC,
 	)
 
-	go elevio.PollButtons(hardWareCallC)
+	go elevio.PollButtons(hardWareCallToSyncC)
 	go elevsync.Sync(
 		id,
-		hardWareCallC,
-		completedCallC,
-		localStateC,
-		syncedVariablesC,
+		hardWareCallToSyncC,
+		completedCallToSyncC,
+		localStateToSyncC,
+		syncedVariablesToMainC,
 		otherDataToSyncC,
 		otherCabCallsRequestC,
 		otherCabCallsToNetworkC,
@@ -83,12 +83,12 @@ func main() {
 	for {
 
 		select {
-		case state = <-fsmStateC:
+		case state = <-fsmStateToMainC:
 			if state != prevState {
-				localStateC <- state
+				localStateToSyncC <- state
 				prevState = state
 			}
-		case syncedVariables := <-syncedVariablesC:
+		case syncedVariables := <-syncedVariablesToMainC:
 			if syncedVariables.Equals(prevSyncedVariables) {
 				break
 			}
@@ -103,7 +103,7 @@ func main() {
 				syncedVariables.OtherElevatorBoolList...,
 			)
 
-			callsToElevatorC <- elevsync.CallsBool{
+			confirmedCallsToElevatorC <- elevsync.CallsBool{
 				HallCallsBool: sequenceassigner.AssignCalls(allStates, syncedVariables.SyncedHallCalls),
 				CabCallsBool:  syncedVariables.LocalCabCalls,
 			}
@@ -111,7 +111,7 @@ func main() {
 
 		case <-hardwareDisconnectedC:
 			state.MotorStop = true
-			localStateC <- state
+			localStateToSyncC <- state
 
 		// Debug to monitor state and alive
 		case <-time.After(3 * time.Second):

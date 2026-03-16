@@ -22,7 +22,7 @@ drainChannel:
 		}
 	}
 }
-func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC chan<- elevio.CallEvent, callsToElevatorC <-chan elevsync.CallsBool, hardwareReconnectedC <-chan bool) {
+func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC chan<- elevio.CallEvent, confirmedCallsToElevatorC <-chan elevsync.CallsBool, hardwareReconnectedC <-chan bool) {
 
 	stopButtonC := make(chan bool, 16)
 	floorSensorC := make(chan int, 1)
@@ -164,8 +164,8 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 				state.Behaviour = elevstate.DoorOpen
 
 			}
-		case confirmedCalls := <-callsToElevatorC:
-			drainChannel(callsToElevatorC, &confirmedCalls)
+		case confirmedCalls := <-confirmedCallsToElevatorC:
+			drainChannel(confirmedCallsToElevatorC, &confirmedCalls)
 			hCalls, cCalls = confirmedCalls.HallCallsBool, confirmedCalls.CabCallsBool
 			switch state.Behaviour {
 			case elevstate.Moving:

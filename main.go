@@ -34,10 +34,10 @@ func main() {
 
 	callsToLightsC := make(chan elevsync.CommonCalls, 1024)
 
-	hardWareCallC := make(chan elevio.CallEvent, 1024)
-	completedCallC := make(chan elevio.CallEvent, 1024)
-	localStateC := make(chan elevstate.ElevState, 1024)
-	syncedVariablesC := make(chan elevsync.SyncedData, 1024)
+	hardWareCallToSyncC := make(chan elevio.CallEvent, 1024)
+	completedCallToSyncC := make(chan elevio.CallEvent, 1024)
+	localStateToSyncC := make(chan elevstate.ElevState, 1024)
+	syncedVariablesToMainC := make(chan elevsync.SyncedData, 1024)
 	otherDataToSyncC := make(chan elevsync.NetworkMsg, 1024)
 
 	otherCabCallsRequestC := make(chan string, 1024)
@@ -47,7 +47,7 @@ func main() {
 	selfDataToNetworkC := make(chan elevsync.NetworkMsg, 1024)
 	alivePeersC := make(chan []string, 1024)
 
-	go elevator.Elevator(fsmStateC, completedCallC, callsToElevatorC, hardwareReconnectedC)
+	go elevator.Elevator(fsmStateC, completedCallToSyncC, callsToElevatorC, hardwareReconnectedC)
 	go lights.SetLights(callsToLightsC)
 
 	go network.Network(
@@ -61,13 +61,13 @@ func main() {
 		selfCabCallsToSyncC,
 	)
 
-	go elevio.PollButtons(hardWareCallC)
+	go elevio.PollButtons(hardWareCallToSyncC)
 	go elevsync.Sync(
 		id,
-		hardWareCallC,
-		completedCallC,
-		localStateC,
-		syncedVariablesC,
+		hardWareCallToSyncC,
+		completedCallToSyncC,
+		localStateToSyncC,
+		syncedVariablesToMainC,
 		otherDataToSyncC,
 		otherCabCallsRequestC,
 		otherCabCallsToNetworkC,
@@ -79,57 +79,60 @@ func main() {
 
 	var state elevstate.ElevState
 	var prevState elevstate.ElevState
+	var syncedVariables elevsync.SyncedData
 	var prevSyncedVariables elevsync.SyncedData
 
-	// For sync timeouting
-	lastSyncTime := time.Now()
-
-	// For debug
-	i := 0
+	syncTicker := time.NewTicker(config.SyncTimeout)
 
 	for {
 
 		select {
 		case state = <-fsmStateC:
 			if state != prevState {
-				localStateC <- state
+				localStateToSyncC <- state
 				prevState = state
 			}
-		case syncedVariables := <-syncedVariablesC:
-			timeSinceLastSync := time.Since(lastSyncTime)
-			if syncedVariables.Equals(prevSyncedVariables) && timeSinceLastSync < config.SyncTimeout {
+		case syncedVariables = <-syncedVariablesToMainC:
+			if syncedVariables.Equals(prevSyncedVariables) {
 				break
 			}
-			lastSyncTime = time.Now()
-
-			allStates := append(
-				[]elevsync.OtherElevatorBool{
-					{
-						ID:           id,
-						State:        state,
-						CabCallsBool: syncedVariables.LocalCabCalls,
-					}},
-				syncedVariables.OtherElevatorBoolList...,
-			)
-
-			callsToElevatorC <- elevsync.CommonCalls{
-				HallCalls: sequenceassigner.AssignCalls(allStates, syncedVariables.SyncedHallCalls),
-				CabCalls:  syncedVariables.LocalCabCalls,
-			}
-			callsToLightsC <- elevsync.CommonCalls{
-				HallCalls: syncedVariables.SyncedHallCalls,
-				CabCalls:  syncedVariables.LocalCabCalls,
-			}
 			prevSyncedVariables = syncedVariables
-
+			updateElevator(id, state, syncedVariables, callsToElevatorC, callsToLightsC)
+		case <-syncTicker.C:
+			updateElevator(id, state, syncedVariables, callsToElevatorC, callsToLightsC)
 		case <-hardwareDisconnectedC:
 			state.MotorStop = true
-			localStateC <- state
-
-		// Debug to monitor state and alive
-		case <-time.After(3 * time.Second):
-			i++
-			fmt.Println("main", i, "state:", state.Floor, state.Direction, state.Behaviour)
+			localStateToSyncC <- state
 		}
+	}
+}
+
+func updateElevator(
+	id string,
+	state elevstate.ElevState,
+	synced elevsync.SyncedData,
+	callsToElevatorC chan<- elevsync.CommonCalls,
+	callsToLightsC chan<- elevsync.CommonCalls,
+) {
+
+	allStates := append(
+		[]elevsync.OtherElevatorBool{
+			{
+				ID:           id,
+				State:        state,
+				CabCallsBool: synced.LocalCabCalls,
+			},
+		},
+		synced.OtherElevatorBoolList...,
+	)
+
+	callsToElevatorC <- elevsync.CommonCalls{
+		HallCalls: sequenceassigner.AssignCalls(allStates, synced.SyncedHallCalls),
+		CabCalls:  synced.LocalCabCalls,
+	}
+
+	callsToLightsC <- elevsync.CommonCalls{
+		HallCalls: synced.SyncedHallCalls,
+		CabCalls:  synced.LocalCabCalls,
 	}
 }

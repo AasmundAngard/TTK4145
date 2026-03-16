@@ -171,12 +171,27 @@ func Elevator(fsmStateToMainC chan<- elevstate.ElevState, completedCallToSyncC c
 			case elevstate.Moving:
 				break
 			case elevstate.DoorOpen:
-				break
+				if cCalls[state.Floor] {
+					cCalls[state.Floor] = false
+					completedCallToSyncC <- state.ToCabCallEvent()
+				}
+				if hCalls[state.Floor][state.Direction] {
+					hCalls[state.Floor][state.Direction] = false
+					completedCallToSyncC <- state.ToHallCallEvent()
+				}
 			case elevstate.Idle:
 				state = sequenceassigner.NextState(hCalls, cCalls, state)
 				switch state.Behaviour {
 				case elevstate.DoorOpen:
 					openDoorC <- true
+					if cCalls[state.Floor] {
+						cCalls[state.Floor] = false
+						completedCallToSyncC <- state.ToCabCallEvent()
+					}
+					if hCalls[state.Floor][state.Direction] {
+						hCalls[state.Floor][state.Direction] = false
+						completedCallToSyncC <- state.ToHallCallEvent()
+					}
 				case elevstate.Moving:
 					elevio.SetMotorDirection(state.Direction.ToMD())
 					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)

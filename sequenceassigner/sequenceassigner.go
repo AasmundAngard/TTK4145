@@ -93,6 +93,11 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 	hallRequests := hallCalls
 	states := make(map[string]assignerState)
 
+	// fmt.Println("All hallcalls:")
+	// for _, floor := range hallCalls {
+	// 	fmt.Println(floor[0], floor[1])
+	// }
+
 	for i := range allStates {
 		tempState := assignerState{
 			Behaviour:   allStates[i].State.Behaviour.String(),

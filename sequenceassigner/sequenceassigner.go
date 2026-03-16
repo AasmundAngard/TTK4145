@@ -99,6 +99,9 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 	}
 
 	for i := range allStates {
+		if allStates[i].State.MotorStop || allStates[i].State.DoorObstructed {
+			continue
+		}
 		tempState := assignerState{
 			Behaviour:   allStates[i].State.Behaviour.String(),
 			Floor:       allStates[i].State.Floor,

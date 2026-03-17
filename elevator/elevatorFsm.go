@@ -150,7 +150,8 @@ func Elevator(
 				fmt.Println("New floor in impossible state:" + strconv.Itoa(int(state.Behaviour)))
 				elevio.SetMotorDirection(elevio.MD_Stop)
 				motorTimeoutTimer.Stop()
-				elevio.SetFloorIndicator(newFloor)
+				state.Floor = newFloor
+				elevio.SetFloorIndicator(state.Floor)
 				openDoorC <- true
 				state.Behaviour = elevstate.DoorOpen
 				orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
@@ -234,10 +235,15 @@ func Elevator(
 			currentFloor := elevio.GetFloor()
 			switch {
 			case currentFloor == -1:
+				// Unknown floor, set to legal floor
+				state.Floor = 2
+				elevio.SetFloorIndicator(state.Floor)
 				elevio.SetMotorDirection(state.Direction.ToMD())
 				motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 				state.Behaviour = elevstate.Moving
 			default:
+				state.Floor = currentFloor
+				elevio.SetFloorIndicator(state.Floor)
 				openDoorC <- true
 				state.Behaviour = elevstate.DoorOpen
 			}

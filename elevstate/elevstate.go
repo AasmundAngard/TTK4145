@@ -13,19 +13,6 @@ const (
 	DoorOpen           = 2
 )
 
-func (b Behaviour) String() string {
-	switch b {
-	case Idle:
-		return "idle"
-	case Moving:
-		return "moving"
-	case DoorOpen:
-		return "doorOpen"
-	default:
-		panic(strconv.Itoa(int(b)))
-	}
-}
-
 type ElevState struct {
 	Behaviour      Behaviour
 	Floor          int
@@ -45,5 +32,18 @@ func (e ElevState) ToHallCallEvent() elevio.CallEvent {
 		return elevio.CallEvent{Floor: e.Floor, Button: elevio.BT_HallDown}
 	default:
 		panic("Invalid Direction to ButtonEvent")
+	}
+}
+
+func (b Behaviour) String() string {
+	switch b {
+	case Idle:
+		return "idle"
+	case Moving:
+		return "moving"
+	case DoorOpen:
+		return "doorOpen"
+	default:
+		panic(strconv.Itoa(int(b)))
 	}
 }

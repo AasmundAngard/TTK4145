@@ -6,9 +6,9 @@ import (
 	"root/elevsync"
 )
 
-func SetLights(callsToLightsC <-chan elevsync.CommonCalls) {
+func Lights(commonCallsToLightsC <-chan elevsync.CommonCalls) {
 	for {
-		calls := <-callsToLightsC
+		calls := <-commonCallsToLightsC
 		for floor := 0; floor < config.NumFloors; floor++ {
 			elevio.SetButtonLamp(elevio.BT_HallUp, floor, calls.HallCalls[floor][0])
 			elevio.SetButtonLamp(elevio.BT_HallDown, floor, calls.HallCalls[floor][1])

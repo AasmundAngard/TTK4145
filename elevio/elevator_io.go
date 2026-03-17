@@ -125,37 +125,37 @@ func PollButtons(receiver chan<- CallEvent) {
 	}
 }
 
-func PollFloorSensor(receiver chan<- int) {
+func PollFloorSensor(floorSensorC chan<- int) {
 	prev := -1
 	for {
 		time.Sleep(_pollRate)
 		v := GetFloor()
 		if v != prev && v != -1 {
-			receiver <- v
+			floorSensorC <- v
 		}
 		prev = v
 	}
 }
 
-func PollStopButton(receiver chan<- bool) {
+func PollStopButton(stopButtonC chan<- bool) {
 	prev := false
 	for {
 		time.Sleep(_pollRate)
 		v := GetStop()
 		if v != prev {
-			receiver <- v
+			stopButtonC <- v
 		}
 		prev = v
 	}
 }
 
-func PollObstructionSwitch(receiver chan<- bool) {
+func PollObstructionSwitch(obstructedC chan<- bool) {
 	prev := false
 	for {
 		time.Sleep(_pollRate)
 		v := GetObstruction()
 		if v != prev {
-			receiver <- v
+			obstructedC <- v
 		}
 		prev = v
 	}

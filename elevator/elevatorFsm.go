@@ -18,13 +18,12 @@ func Elevator(
 	floorReachedC := make(chan int, 16)
 	stopButtonC := make(chan bool, 16)
 
-	go elevio.PollFloorSensor(floorReachedC)
-	go elevio.PollStopButton(stopButtonC)
-
 	openDoorC := make(chan bool, 16)
 	doorClosedC := make(chan bool, 16)
 	doorObstructedC := make(chan bool, 16)
 
+	go elevio.PollFloorSensor(floorReachedC)
+	go elevio.PollStopButton(stopButtonC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
 
 	var hCalls HallCallsBool

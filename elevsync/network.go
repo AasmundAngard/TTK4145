@@ -59,13 +59,12 @@ func (self *Calls) mergeHallCallsForgiving(OtherElevatorList *OtherElevatorList)
 			if maxVersion < self.HallCalls[floor][btn].Version {
 				maxVersion = self.HallCalls[floor][btn].Version
 			}
-			(*self).HallCalls[floor][btn].Version = maxVersion + 1
-
 			if self.HallCalls[floor][btn].NeedService == true {
 				needService = true
+
 			}
 			(*self).HallCalls[floor][btn].NeedService = needService
-
+			(*self).HallCalls[floor][btn].Version = maxVersion + 1
 			for i, otherElevator := range *OtherElevatorList {
 				if otherElevator.Alive == true {
 					(*OtherElevatorList)[i].Calls.HallCalls[floor][btn].Version = maxVersion + 1
@@ -85,6 +84,9 @@ func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(al
 	selfDataToNetworkC chan<- NetworkMsg,
 	NetworkMsgVersion int64, id string, localCallsPtr *Calls, localStatePtr *elevstate.ElevState) int64 {
 	var ReconnectRespondents []string
+	var incomingNetworkMsg NetworkMsg
+
+	DrainChannel(otherDataToSyncC, &incomingNetworkMsg)
 
 	for len(ReconnectRespondents) < len(alivePeersList)-1 {
 		if (len(alivePeersList)) == 1 {
@@ -92,6 +94,7 @@ func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(al
 		}
 		print("Waiting for responses")
 		select {
+
 		case incomingNetworkMsg := <-otherDataToSyncC:
 			if !slices.Contains(ReconnectRespondents, incomingNetworkMsg.SenderID) {
 				ReconnectRespondents = append(ReconnectRespondents, incomingNetworkMsg.SenderID)
@@ -208,4 +211,15 @@ func (thisSyncedData *SyncedData) Equals(otherSyncedData SyncedData) bool {
 		return false
 	}
 	return true
+}
+
+func DrainChannel[T any](variableC <-chan T, variable *T) {
+drainChannel:
+	for {
+		select {
+		case *variable = <-variableC:
+		default:
+			break drainChannel
+		}
+	}
 }

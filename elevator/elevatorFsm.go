@@ -10,53 +10,6 @@ import (
 	"time"
 )
 
-func drainChannel[T any](variableC <-chan T, variable *T) {
-drainChannel:
-	for {
-		select {
-		case *variable = <-variableC:
-		default:
-			break drainChannel
-		}
-	}
-}
-
-func orderDone(state elevstate.ElevState, hCalls *elevsync.HallCallsBool, cCalls *elevsync.CabCallsBool, completedCallToSyncC chan<- elevio.CallEvent) {
-	if cCalls[state.Floor] {
-		cCalls[state.Floor] = false
-		completedCallToSyncC <- state.ToCabCallEvent()
-	}
-	if hCalls[state.Floor][state.Direction] && !state.MotorStop && !state.DoorObstructed {
-		hCalls[state.Floor][state.Direction] = false
-		completedCallToSyncC <- state.ToHallCallEvent()
-	}
-}
-
-func orderInDirection(direction elevstate.Direction, floor int, hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool) bool {
-	if direction == elevstate.Up {
-		return requestsAbove(hallCalls, cabCalls, floor)
-	} else {
-		return requestsBelow(hallCalls, cabCalls, floor)
-	}
-}
-func requestsAbove(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
-	for f := currentFloor + 1; f < config.NumFloors; f++ {
-		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
-			return true
-		}
-	}
-	return false
-}
-
-func requestsBelow(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
-	for f := 0; f < currentFloor; f++ {
-		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
-			return true
-		}
-	}
-	return false
-}
-
 func Elevator(
 	selfStateToMainC chan<- elevstate.ElevState,
 	completedCallToSyncC chan<- elevio.CallEvent,
@@ -65,41 +18,26 @@ func Elevator(
 ) {
 
 	floorReachedC := make(chan int, 16)
+	stopButtonC := make(chan bool, 16)
+
 	openDoorC := make(chan bool, 16)
 	doorClosedC := make(chan bool, 16)
 	doorObstructedC := make(chan bool, 16)
-	stopButtonC := make(chan bool, 16)
 
-	go elevio.PollStopButton(stopButtonC)
 	go elevio.PollFloorSensor(floorReachedC)
+	go elevio.PollStopButton(stopButtonC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
 
 	var hCalls elevsync.HallCallsBool
 	var cCalls elevsync.CabCallsBool
 
-	var state elevstate.ElevState
-	state.Behaviour = elevstate.Idle
-	state.Direction = elevstate.Down
+	state := elevstate.ElevState{Behaviour: elevstate.Idle, Direction: elevstate.Down}
 
 	// Create dormant timer object
 	motorTimeoutTimer := time.NewTimer(0)
 	if !motorTimeoutTimer.Stop() {
 		<-motorTimeoutTimer.C
 	}
-
-	// Init
-	floor := elevio.GetFloor()
-	fmt.Println("startfloor:", floor)
-	if floor != -1 {
-		state.Floor = <-floorReachedC
-
-	} else {
-		elevio.SetMotorDirection(state.Direction.ToMD())
-		state.Floor = <-floorReachedC
-		elevio.SetMotorDirection(elevio.MD_Stop)
-	}
-	elevio.SetFloorIndicator(state.Floor)
-	selfStateToMainC <- state
 
 	var i int = 0 // Debugging
 

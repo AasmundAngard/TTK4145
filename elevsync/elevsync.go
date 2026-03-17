@@ -3,6 +3,7 @@ package elevsync
 import (
 	"root/elevio"
 	"root/elevstate"
+	"time"
 )
 
 func Sync(id string,
@@ -56,13 +57,14 @@ func Sync(id string,
 
 			if OtherElevatorList.detectReconnect(prevAlivePeers) == true {
 				if cabCallsRestored == false {
+					time.Sleep(time.Millisecond * 100)
 					incomingCabCallsList := <-selfCabCallsToSyncC
 					//print("Received calls")
 					localCalls.mergeCabCalls(incomingCabCallsList)
 					cabCallsRestored = true
 				}
 
-				NetworkMsgVersion = OtherElevatorList.updateSelfInOthersAndOthersInSelf(alivePeersList, otherDataToSyncC, networkRequestSelfDataC, selfDataToNetworkC, NetworkMsgVersion, id, &localCalls, &localState)
+				NetworkMsgVersion = OtherElevatorList.updateSelfInOthersAndOthersInSelf(alivePeersList, alivePeersC, otherDataToSyncC, networkRequestSelfDataC, selfDataToNetworkC, NetworkMsgVersion, id, &localCalls, &localState)
 
 				localCalls.mergeHallCallsForgiving(&OtherElevatorList)
 				//print("Merging calls forgivingly")

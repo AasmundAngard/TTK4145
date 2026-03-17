@@ -33,17 +33,6 @@ func (d Direction) ToMD() elevio.MotorDirection {
 	}
 }
 
-func (d Direction) ToBtnType() elevio.ButtonType {
-	switch d {
-	case Up:
-		return elevio.BT_HallUp
-	case Down:
-		return elevio.BT_HallDown
-	default:
-		return 0
-	}
-}
-
 func (d Direction) String() string {
 	switch d {
 	case Up:

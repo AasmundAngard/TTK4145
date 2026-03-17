@@ -8,7 +8,7 @@ import (
 func Sync(id string,
 	hardwareCallToSyncC <-chan elevio.CallEvent,
 	completedCallToSyncC <-chan elevio.CallEvent,
-	localStateToSyncC <-chan elevstate.ElevState,
+	selfStateToSyncC <-chan elevstate.ElevState,
 	syncedVariablesToMainC chan<- SyncedData,
 	otherDataToSyncC <-chan NetworkMsg,
 	otherCabCallsRequestC <-chan string,
@@ -37,7 +37,7 @@ func Sync(id string,
 		case incomingFinishedCall := <-completedCallToSyncC:
 			localCalls.removeCall(incomingFinishedCall)
 
-		case incomingLocalState := <-localStateToSyncC:
+		case incomingLocalState := <-selfStateToSyncC:
 			localState = incomingLocalState
 
 		case incomingNetworkMsg := <-otherDataToSyncC:

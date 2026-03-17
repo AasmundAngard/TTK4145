@@ -58,9 +58,9 @@ func requestsBelow(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsB
 }
 
 func Elevator(
-	localStateToMainC chan<- elevstate.ElevState,
+	selfStateToMainC chan<- elevstate.ElevState,
 	completedCallToSyncC chan<- elevio.CallEvent,
-	localCallsToElevatorC <-chan elevsync.CommonCalls,
+	selfCallsToElevatorC <-chan elevsync.CommonCalls,
 	hardwareReconnectedC <-chan bool,
 ) {
 
@@ -99,8 +99,9 @@ func Elevator(
 		elevio.SetMotorDirection(elevio.MD_Stop)
 	}
 	elevio.SetFloorIndicator(state.Floor)
+	selfStateToMainC <- state
+
 	var i int = 0 // Debugging
-	localStateToMainC <- state
 
 	for {
 
@@ -175,8 +176,8 @@ func Elevator(
 				fmt.Println("Illegal state:", strconv.Itoa(int(state.Behaviour)))
 				state.Behaviour = elevstate.Idle
 			}
-		case localCalls := <-localCallsToElevatorC:
-			drainChannel(localCallsToElevatorC, &localCalls)
+		case localCalls := <-selfCallsToElevatorC:
+			drainChannel(selfCallsToElevatorC, &localCalls)
 			hCalls, cCalls = localCalls.HallCalls, localCalls.CabCalls
 
 			switch state.Behaviour {
@@ -245,7 +246,7 @@ func Elevator(
 			fmt.Println("fsm", i, "state:", state.Floor, state.Direction, state.Behaviour)
 		}
 
-		localStateToMainC <- state
+		selfStateToMainC <- state
 	}
 
 }

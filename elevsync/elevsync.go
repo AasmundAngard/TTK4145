@@ -58,10 +58,6 @@ func Sync(id string,
 			if OtherElevatorList.detectReconnect(prevAlivePeers) == true {
 				if cabCallsRestored == false {
 					incomingCabCallsList := <-selfCabCallsToSyncC
-<<<<<<< HEAD
-					//print("Received cabc|alls")
-=======
->>>>>>> ae6303bcf974f8c56bcf36b734af8962499ca805
 					localCalls.mergeCabCalls(incomingCabCallsList)
 					cabCallsRestored = true
 				}
@@ -72,11 +68,7 @@ func Sync(id string,
 				//print("Merging calls forgivingly")
 			}
 
-<<<<<<< HEAD
-			copy(prevAlivePeers, alivePeersList)
-=======
 			prevAlivePeers = slices.Clone(alivePeersList)
->>>>>>> ae6303bcf974f8c56bcf36b734af8962499ca805
 
 			//Edge case: Another elevator is requesting its cab calls from this elevator
 		case ID := <-otherCabCallsRequestC:

@@ -59,7 +59,6 @@ func Init(addr string, numFloors int, hardwareDisconnectedC chan<- bool, hardwar
 		_conn, err = net.Dial("tcp", addr)
 		if err == nil {
 			break
-			// panic(err.Error())
 		}
 	}
 	_initialized = true
@@ -74,7 +73,6 @@ func reconnect() {
 		_conn, err = net.Dial("tcp", _addr)
 		if err == nil {
 			break
-			// panic(err.Error())
 		}
 	}
 	_initialized = true
@@ -207,8 +205,6 @@ func write(in [4]byte) {
 	if err != nil {
 		reconnect()
 		_, err = _conn.Write(in[:])
-
-		// panic("Lost connection to Elevator Server")
 	}
 	_mtx.Unlock()
 }

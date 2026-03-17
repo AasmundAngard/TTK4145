@@ -59,28 +59,20 @@ func Init(addr string, numFloors int, hardwareDisconnectedC chan<- bool, hardwar
 		_conn, err = net.Dial("tcp", addr)
 		if err == nil {
 			break
-			// panic(err.Error())
 		}
 	}
 	_initialized = true
 }
 
 func reconnect() {
-	// _mtx.Lock()
-	// defer _mtx.Unlock()
-
-	if _initialized {
-		fmt.Println("Driver already initialized!")
-		return
-	}
+	_initialized = false
+	_hardwareDisconnectedC <- true
 
 	var err error
-	_hardwareDisconnectedC <- true
 	for {
 		_conn, err = net.Dial("tcp", _addr)
 		if err == nil {
 			break
-			// panic(err.Error())
 		}
 	}
 	_initialized = true
@@ -190,28 +182,16 @@ func read(in [4]byte) [4]byte {
 
 	_, err := _conn.Write(in[:])
 	if err != nil {
-		_initialized = false
-		// _conn.Close()
-		// _mtx.Unlock()
-		fmt.Println("write read")
 		reconnect()
 		_, err = _conn.Write(in[:])
-
-		// panic("Lost connection to Elevator Server")
 	}
 
 	var out [4]byte
 	_, err = _conn.Read(out[:])
 	if err != nil {
-		_initialized = false
-		// _conn.Close()
-		// _mtx.Unlock()
-		fmt.Println("read read")
 		reconnect()
 		_, err = _conn.Write(in[:])
 		_, err = _conn.Read(out[:])
-
-		// panic("Lost connection to Elevator Server")
 	}
 	_mtx.Unlock()
 
@@ -223,12 +203,8 @@ func write(in [4]byte) {
 	_, err := _conn.Write(in[:])
 
 	if err != nil {
-		fmt.Println("write write")
-
 		reconnect()
 		_, err = _conn.Write(in[:])
-
-		// panic("Lost connection to Elevator Server")
 	}
 	_mtx.Unlock()
 }

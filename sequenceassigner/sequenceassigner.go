@@ -97,7 +97,6 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 	for _, floor := range hallCalls {
 		fmt.Println(floor[0], floor[1])
 	}
-
 	for i := range allStates {
 		if allStates[i].State.MotorStop || allStates[i].State.DoorObstructed {
 			continue
@@ -111,6 +110,9 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 		states[allStates[i].ID] = tempState
 	}
 
+	if len(states) == 0 {
+		return elevsync.HallCallsBool{}
+	}
 	input := assignerInput{
 		HallRequests: hallRequests,
 		States:       states,

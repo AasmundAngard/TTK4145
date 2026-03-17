@@ -122,7 +122,7 @@ func Elevator(
 				state.Behaviour = elevstate.Idle
 			}
 		case localCalls := <-selfCallsToElevatorC:
-			drainChannel(selfCallsToElevatorC, &localCalls)
+			DrainChannel(selfCallsToElevatorC, &localCalls)
 			hCalls, cCalls = localCalls.HallCalls, localCalls.CabCalls
 
 			switch state.Behaviour {

@@ -7,7 +7,7 @@ import (
 	"root/elevsync"
 )
 
-func drainChannel[T any](variableC <-chan T, variable *T) {
+func DrainChannel[T any](variableC <-chan T, variable *T) {
 drainChannel:
 	for {
 		select {

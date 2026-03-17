@@ -11,8 +11,8 @@ import (
 )
 
 type CabNetworkMsg struct {
-	SenderID	string
-	CabCalls 	elevsync.CabCalls 
+	SenderID string
+	CabCalls elevsync.CabCalls
 }
 
 func initElevator(id string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
@@ -23,7 +23,7 @@ func initElevator(id string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 	go bcast.Receiver(config.CabCallPort, cabCallsRxC)
 
 	var collectedCalls []elevsync.CabCalls
-	var collectedIDs   []string
+	var collectedIDs []string
 
 	timeout := time.After(config.InitTimeout)
 
@@ -99,12 +99,11 @@ func Network(id string,
 	go bcast.Receiver(config.CabRequestPort, cabRequestRxC)
 
 	time.Sleep(time.Second)
-	// Initialize (ask for cab calls)
-	initElevator(id, selfCabCallsToSyncC)
-
 	// Dillemma: Need to broadcast status at set intervals, but the rest should just be a loop that collects responses from channels
 	// 5. (Solulu): make a function for bcasting status that is its own thread duh
 	go broadcastState(stateTxC, networkRequestSelfDataC, selfDataToNetworkC)
+	// Initialize (ask for cab calls)
+	initElevator(id, selfCabCallsToSyncC)
 
 	// 6. Make a loop w./ select/case that listens to the channels for updates:
 

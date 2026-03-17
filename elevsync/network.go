@@ -79,6 +79,7 @@ func (self *Calls) mergeHallCallsForgiving(OtherElevatorList *OtherElevatorList)
 func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(alivePeersList []string,
 	//Blocking, to make sure the elevators have synchronized data before ruining everything
 
+	alivePeersC <-chan []string,
 	otherDataToSyncC <-chan NetworkMsg,
 	networkRequestSelfDataC <-chan struct{},
 	selfDataToNetworkC chan<- NetworkMsg,
@@ -86,6 +87,9 @@ func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(al
 	var ReconnectRespondents []string
 
 	for len(ReconnectRespondents) < len(alivePeersList)-1 {
+		if (len(alivePeersList)) == 1 {
+			break
+		}
 		print("Waiting for responses")
 		select {
 		case incomingNetworkMsg := <-otherDataToSyncC:
@@ -98,6 +102,9 @@ func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(al
 		case <-networkRequestSelfDataC:
 			selfDataToNetworkC <- NetworkMsg{Version: NetworkMsgVersion, SenderID: id, Calls: *localCallsPtr, State: *localStatePtr}
 			NetworkMsgVersion++
+
+		case alivePeersList := <-alivePeersC:
+			OtherElevatorList.updateAliveStatus(alivePeersList)
 		}
 	}
 

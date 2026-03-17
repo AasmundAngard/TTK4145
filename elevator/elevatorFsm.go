@@ -107,8 +107,11 @@ func Elevator(
 
 		select {
 		case newFloor := <-floorReachedC:
+			fmt.Println("newfloor:", newFloor)
 			switch state.Behaviour {
 			case elevstate.Moving:
+				fmt.Println("newfloor moving")
+
 				state.Floor = newFloor
 				elevio.SetFloorIndicator(state.Floor)
 				motorTimeoutTimer.Stop()
@@ -131,6 +134,9 @@ func Elevator(
 					state.Direction = state.Direction.Opposite()
 					elevio.SetMotorDirection(state.Direction.ToMD())
 					state.Behaviour = elevstate.Moving
+				default:
+					elevio.SetMotorDirection(elevio.MD_Stop)
+					state.Behaviour = elevstate.Idle
 				}
 
 				switch state.Floor {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"root/config"
-	"root/elevstate"
+	"root/elevator"
 	"slices"
 	"strconv"
 )
@@ -13,21 +13,21 @@ type NetworkMsg struct {
 	Version  int64
 	SenderID string
 	Calls    Calls
-	State    elevstate.ElevState
+	State    elevator.ElevState
 }
 
 type OtherElevator struct {
 	ID      string
 	Version int64
 	Calls   Calls
-	State   elevstate.ElevState
+	State   elevator.ElevState
 	Alive   bool
 }
 type OtherElevatorList []OtherElevator
 type OtherElevatorBool struct {
 	ID           string
-	State        elevstate.ElevState
-	CabCallsBool CabCallsBool
+	State        elevator.ElevState
+	CabCallsBool elevator.CabCallsBool
 }
 
 func (OtherElevatorList *OtherElevatorList) detectReconnect(prevAlivePeers []string) bool {
@@ -83,7 +83,7 @@ func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(al
 	otherDataToSyncC <-chan NetworkMsg,
 	networkRequestSelfDataC <-chan struct{},
 	selfDataToNetworkC chan<- NetworkMsg,
-	NetworkMsgVersion int64, id string, localCallsPtr *Calls, localStatePtr *elevstate.ElevState) int64 {
+	NetworkMsgVersion int64, id string, localCallsPtr *Calls, localStatePtr *elevator.ElevState) int64 {
 	var ReconnectRespondents []string
 
 	for len(ReconnectRespondents) < len(alivePeersList)-1 {
@@ -186,12 +186,12 @@ func (OtherElevatorList OtherElevatorList) getIDsString() string {
 }
 
 type SyncedData struct {
-	LocalCabCalls         CabCallsBool
-	SyncedHallCalls       HallCallsBool
+	LocalCabCalls         elevator.CabCallsBool
+	SyncedHallCalls       elevator.HallCallsBool
 	OtherElevatorBoolList []OtherElevatorBool
 }
 
-func (syncedData *SyncedData) format(confirmedCalls CommonCalls, OtherElevatorList OtherElevatorList) {
+func (syncedData *SyncedData) format(confirmedCalls elevator.Calls, OtherElevatorList OtherElevatorList) {
 	syncedData.LocalCabCalls = confirmedCalls.CabCalls
 	syncedData.SyncedHallCalls = confirmedCalls.HallCalls
 	syncedData.OtherElevatorBoolList = OtherElevatorList.workingElevsOnlyToBool()

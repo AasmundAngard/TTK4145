@@ -4,16 +4,14 @@ import (
 	"fmt"
 	"root/config"
 	"root/elevio"
-	"root/elevstate"
-	"root/elevsync"
 	"strconv"
 	"time"
 )
 
 func Elevator(
-	selfStateToMainC chan<- elevstate.ElevState,
+	selfStateToMainC chan<- ElevState,
 	completedCallToSyncC chan<- elevio.CallEvent,
-	selfCallsToElevatorC <-chan elevsync.CommonCalls,
+	selfCallsToElevatorC <-chan Calls,
 	hardwareReconnectedC <-chan bool,
 ) {
 
@@ -28,10 +26,10 @@ func Elevator(
 	go elevio.PollStopButton(stopButtonC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
 
-	var hCalls elevsync.HallCallsBool
-	var cCalls elevsync.CabCallsBool
+	var hCalls HallCallsBool
+	var cCalls CabCallsBool
 
-	state := elevstate.ElevState{Behaviour: elevstate.Idle, Direction: elevstate.Down}
+	state := ElevState{Behaviour: Idle, Direction: Down}
 
 	// Create dormant timer object
 	motorTimeoutTimer := time.NewTimer(0)
@@ -47,7 +45,7 @@ func Elevator(
 		case newFloor := <-floorReachedC:
 			fmt.Println("newfloor:", newFloor)
 			switch state.Behaviour {
-			case elevstate.Moving:
+			case Moving:
 				fmt.Println("newfloor moving")
 
 				state.Floor = newFloor
@@ -59,7 +57,7 @@ func Elevator(
 					elevio.SetMotorDirection(elevio.MD_Stop)
 					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
-					state.Behaviour = elevstate.DoorOpen
+					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction, state.Floor, hCalls, cCalls):
 					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 				case hCalls[state.Floor][state.Direction.Opposite()]:
@@ -67,21 +65,21 @@ func Elevator(
 					state.Direction = state.Direction.Opposite()
 					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
-					state.Behaviour = elevstate.DoorOpen
+					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction.Opposite(), state.Floor, hCalls, cCalls):
 					state.Direction = state.Direction.Opposite()
 					elevio.SetMotorDirection(state.Direction.ToMD())
-					state.Behaviour = elevstate.Moving
+					state.Behaviour = Moving
 				default:
 					elevio.SetMotorDirection(elevio.MD_Stop)
-					state.Behaviour = elevstate.Idle
+					state.Behaviour = Idle
 				}
 
 				switch state.Floor {
 				case config.NumFloors:
-					state.Direction = elevstate.Down
+					state.Direction = Down
 				case 0:
-					state.Direction = elevstate.Up
+					state.Direction = Up
 				}
 
 			default:
@@ -91,71 +89,71 @@ func Elevator(
 				state.Floor = newFloor
 				elevio.SetFloorIndicator(state.Floor)
 				openDoorC <- true
-				state.Behaviour = elevstate.DoorOpen
+				state.Behaviour = DoorOpen
 				orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
 			}
 		case <-doorClosedC:
 			switch state.Behaviour {
-			case elevstate.DoorOpen:
+			case DoorOpen:
 				switch {
 				case hCalls[state.Floor][state.Direction] || cCalls[state.Floor]:
 					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
-					state.Behaviour = elevstate.DoorOpen
+					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction, state.Floor, hCalls, cCalls):
 					elevio.SetMotorDirection(state.Direction.ToMD())
-					state.Behaviour = elevstate.Moving
+					state.Behaviour = Moving
 				case hCalls[state.Floor][state.Direction.Opposite()]:
 					state.Direction = state.Direction.Opposite()
 					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
-					state.Behaviour = elevstate.DoorOpen
+					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction.Opposite(), state.Floor, hCalls, cCalls):
 					state.Direction = state.Direction.Opposite()
 					elevio.SetMotorDirection(state.Direction.ToMD())
-					state.Behaviour = elevstate.Moving
+					state.Behaviour = Moving
 				default:
-					state.Behaviour = elevstate.Idle
+					state.Behaviour = Idle
 				}
 			default:
 				fmt.Println("Illegal state:", strconv.Itoa(int(state.Behaviour)))
-				state.Behaviour = elevstate.Idle
+				state.Behaviour = Idle
 			}
 		case localCalls := <-selfCallsToElevatorC:
 			DrainChannel(selfCallsToElevatorC, &localCalls)
 			hCalls, cCalls = localCalls.HallCalls, localCalls.CabCalls
 
 			switch state.Behaviour {
-			case elevstate.Moving:
+			case Moving:
 				break
-			case elevstate.DoorOpen:
+			case DoorOpen:
 				if hCalls[state.Floor][state.Direction] || cCalls[state.Floor] {
 					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
-					state.Behaviour = elevstate.DoorOpen
+					state.Behaviour = DoorOpen
 				}
-			case elevstate.Idle:
+			case Idle:
 				switch {
 				case hCalls[state.Floor][state.Direction] || cCalls[state.Floor]:
 					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
-					state.Behaviour = elevstate.DoorOpen
+					state.Behaviour = DoorOpen
 				case hCalls[state.Floor][state.Direction.Opposite()]:
 					state.Direction = state.Direction.Opposite()
 					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
-					state.Behaviour = elevstate.DoorOpen
+					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction, state.Floor, hCalls, cCalls):
 					elevio.SetMotorDirection(state.Direction.ToMD())
-					state.Behaviour = elevstate.Moving
+					state.Behaviour = Moving
 				case orderInDirection(state.Direction.Opposite(), state.Floor, hCalls, cCalls):
 					state.Direction = state.Direction.Opposite()
 					elevio.SetMotorDirection(state.Direction.ToMD())
-					state.Behaviour = elevstate.Moving
+					state.Behaviour = Moving
 				}
 			default:
 				fmt.Println("Illegal state")
-				state.Behaviour = elevstate.Idle
+				state.Behaviour = Idle
 			}
 
 		case <-motorTimeoutTimer.C:
@@ -178,17 +176,17 @@ func Elevator(
 				elevio.SetFloorIndicator(state.Floor)
 				elevio.SetMotorDirection(state.Direction.ToMD())
 				motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
-				state.Behaviour = elevstate.Moving
+				state.Behaviour = Moving
 			default:
 				state.Floor = currentFloor
 				elevio.SetFloorIndicator(state.Floor)
 				openDoorC <- true
-				state.Behaviour = elevstate.DoorOpen
+				state.Behaviour = DoorOpen
 			}
 
 		case <-stopButtonC:
 			elevio.SetMotorDirection(elevio.MD_Stop)
-			state.Behaviour = elevstate.Moving
+			state.Behaviour = Moving
 			state.MotorStop = true
 		// Debug to monitor state and alive
 		case <-time.After(3 * time.Second):

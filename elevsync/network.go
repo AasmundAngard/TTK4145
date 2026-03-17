@@ -31,6 +31,10 @@ type OtherElevatorBool struct {
 }
 
 func (OtherElevatorList *OtherElevatorList) detectReconnect(prevAlivePeers []string) bool {
+	for id := range prevAlivePeers {
+		print(id)
+	}
+
 	for _, otherElevator := range *OtherElevatorList {
 		if otherElevator.Alive == true && slices.Contains(prevAlivePeers, otherElevator.ID) == false {
 			return true
@@ -75,31 +79,32 @@ func (self *Calls) mergeHallCallsForgiving(OtherElevatorList *OtherElevatorList)
 	}
 }
 
+// Blocking, to make sure the elevators have synchronized data before ruining everything
 func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(alivePeersList []string,
-	//Blocking, to make sure the elevators have synchronized data before ruining everything
-
 	alivePeersC <-chan []string,
 	otherDataToSyncC <-chan NetworkMsg,
 	networkRequestSelfDataC <-chan struct{},
 	selfDataToNetworkC chan<- NetworkMsg,
 	NetworkMsgVersion int64, id string, localCallsPtr *Calls, localStatePtr *elevstate.ElevState) int64 {
+
 	var ReconnectRespondents []string
 	var incomingNetworkMsg NetworkMsg
 
 	DrainChannel(otherDataToSyncC, &incomingNetworkMsg)
 
+	print("Waiting for responses")
 	for len(ReconnectRespondents) < len(alivePeersList)-1 {
 		if (len(alivePeersList)) == 1 {
 			break
 		}
-		print("Waiting for responses")
+
 		select {
 
 		case incomingNetworkMsg := <-otherDataToSyncC:
 			if !slices.Contains(ReconnectRespondents, incomingNetworkMsg.SenderID) {
 				ReconnectRespondents = append(ReconnectRespondents, incomingNetworkMsg.SenderID)
 
-				(*OtherElevatorList).update(incomingNetworkMsg)
+				(*OtherElevatorList).updateWithoutVersionCheck(incomingNetworkMsg)
 			}
 
 		case <-networkRequestSelfDataC:
@@ -111,6 +116,7 @@ func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(al
 		}
 	}
 
+	print("Received responses from all alive elevators, continuing")
 	return NetworkMsgVersion
 }
 
@@ -135,6 +141,27 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 				(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
 				(*OtherElevatorList)[i].Version = incomingNetworkMsg.Version
 			}
+			elevatorFound = true
+			break
+		}
+	}
+
+	if !elevatorFound {
+		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls, Alive: true})
+		if len(*OtherElevatorList) > config.NumElevators-1 {
+			panic("Too many elevators in the system:" + strconv.Itoa(len(*OtherElevatorList)) + " " + OtherElevatorList.getIDsString())
+		}
+	}
+}
+
+func (OtherElevatorList *OtherElevatorList) updateWithoutVersionCheck(incomingNetworkMsg NetworkMsg) {
+	elevatorFound := false
+
+	for i, otherElevator := range *OtherElevatorList {
+		if otherElevator.ID == incomingNetworkMsg.SenderID {
+			(*OtherElevatorList)[i].State = incomingNetworkMsg.State
+			(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
+			(*OtherElevatorList)[i].Version = incomingNetworkMsg.Version
 			elevatorFound = true
 			break
 		}

@@ -81,7 +81,8 @@ func main() {
 	var syncedVariables elevsync.SyncedData
 	var prevSyncedVariables elevsync.SyncedData
 
-	syncTicker := time.NewTicker(config.SyncTimeout)
+	syncTicker := time.NewTicker(time.Hour)
+	// syncTicker := time.NewTicker(config.SyncTimeout)
 
 	for {
 

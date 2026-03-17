@@ -62,6 +62,7 @@ func Init(addr string, numFloors int, hardwareDisconnectedC chan<- bool, hardwar
 		}
 	}
 	_initialized = true
+	hardwareReconnectedC <- true
 }
 
 func reconnect() {

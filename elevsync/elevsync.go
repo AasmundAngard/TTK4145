@@ -29,6 +29,8 @@ func Sync(id string,
 
 	var prevAlivePeers []string
 
+	var cabCallsRestored = false
+
 	for {
 		select {
 		case incomingHardwareCall := <-hardwareCallToSyncC:
@@ -53,6 +55,12 @@ func Sync(id string,
 			OtherElevatorList.updateAliveStatus(alivePeersList)
 
 			if OtherElevatorList.detectReconnect(prevAlivePeers) == true {
+				if cabCallsRestored == false {
+					incomingCabCallsList := <-selfCabCallsToSyncC
+					//print("Received cabc|alls")
+					localCalls.mergeCabCalls(incomingCabCallsList)
+					cabCallsRestored = true
+				}
 
 				NetworkMsgVersion = OtherElevatorList.updateSelfInOthersAndOthersInSelf(alivePeersList, otherDataToSyncC, networkRequestSelfDataC, selfDataToNetworkC, NetworkMsgVersion, id, &localCalls, &localState)
 
@@ -61,11 +69,6 @@ func Sync(id string,
 			}
 
 			copy(prevAlivePeers, alivePeersList)
-
-			//Edge case: This elevator has requested its cab calls and receives them
-		case incomingCabCallsList := <-selfCabCallsToSyncC:
-			//print("Received calls")
-			localCalls.mergeCabCalls(incomingCabCallsList)
 
 			//Edge case: Another elevator is requesting its cab calls from this elevator
 		case ID := <-otherCabCallsRequestC:

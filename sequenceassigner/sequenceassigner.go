@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"root/config"
-	"root/elevstate"
 	"root/elevsync"
 	"runtime"
 )
@@ -93,10 +92,10 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 	hallRequests := hallCalls
 	states := make(map[string]assignerState)
 
-	fmt.Println("All hallcalls:")
-	for _, floor := range hallCalls {
-		fmt.Println(floor[0], floor[1])
-	}
+	// fmt.Println("All hallcalls:")
+	// for _, floor := range hallCalls {
+	// 	fmt.Println(floor[0], floor[1])
+	// }
 	for i := range allStates {
 		if allStates[i].State.MotorStop || allStates[i].State.DoorObstructed {
 			continue
@@ -136,87 +135,11 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 		fmt.Println("Problem with json.Unmarshal: ", err)
 		panic(err)
 	}
-	for elevnum, elev := range jsonOutput {
-		fmt.Println("Heis nummer:", elevnum)
-		for _, floor := range elev {
-			fmt.Println(floor[0], floor[1])
-		}
-	}
-	return (jsonOutput)[allStates[0].ID]
-}
-
-// Returns next state (direction and behaviour) based on call-requests and current direction and floor
-func NextState(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentState elevstate.ElevState) elevstate.ElevState {
-	var nextState elevstate.ElevState
-	nextState.Floor = currentState.Floor
-	// fmt.Println("Nextstate input:")
-	// for _, floor := range hallCalls {
-	// 	fmt.Println(floor[0], floor[1])
+	// for elevnum, elev := range jsonOutput {
+	// 	fmt.Println("Heis nummer:", elevnum)
+	// 	for _, floor := range elev {
+	// 		fmt.Println(floor[0], floor[1])
+	// 	}
 	// }
-	// Inspired by the elevator algorithim in the project resources
-	switch currentState.Direction {
-	case elevstate.Up:
-		switch {
-		case requestsHere(hallCalls, cabCalls, currentState.Floor) && !(currentState.Behaviour == elevstate.DoorOpen):
-			nextState.Behaviour = elevstate.DoorOpen
-
-			switch {
-			case hallCalls[currentState.Floor][elevstate.Up]:
-				nextState.Direction = elevstate.Up
-			case hallCalls[currentState.Floor][elevstate.Down] && !cabAbove(cabCalls, currentState.Floor):
-				nextState.Direction = elevstate.Down
-			default:
-				nextState.Direction = elevstate.Up
-			}
-		case requestsAbove(hallCalls, cabCalls, currentState.Floor):
-			fmt.Println("requestabove")
-			nextState.Direction = elevstate.Up // Moving upwards, call(s) above
-			nextState.Behaviour = elevstate.Moving
-		case requestsBelow(hallCalls, cabCalls, currentState.Floor):
-			fmt.Println("requestbelow")
-			nextState.Direction = elevstate.Down // Moving upwards, call(s) below
-			nextState.Behaviour = elevstate.Moving
-		case currentState.Floor == config.NumFloors:
-			nextState.Direction = elevstate.Down
-			nextState.Behaviour = currentState.Behaviour
-		default:
-			nextState.Direction = elevstate.Up
-			nextState.Behaviour = elevstate.Idle
-		}
-
-	case elevstate.Down:
-		switch {
-		case requestsHere(hallCalls, cabCalls, currentState.Floor) && !(currentState.Behaviour == elevstate.DoorOpen):
-			nextState.Behaviour = elevstate.DoorOpen
-
-			switch {
-			case hallCalls[currentState.Floor][elevstate.Down]:
-				nextState.Direction = elevstate.Down
-			case hallCalls[currentState.Floor][elevstate.Up] && !cabBelow(cabCalls, currentState.Floor):
-				nextState.Direction = elevstate.Up
-			default:
-				nextState.Direction = elevstate.Down
-			}
-		case requestsBelow(hallCalls, cabCalls, currentState.Floor):
-			nextState.Direction = elevstate.Down
-			nextState.Behaviour = elevstate.Moving
-		case requestsAbove(hallCalls, cabCalls, currentState.Floor):
-			nextState.Direction = elevstate.Up
-			nextState.Behaviour = elevstate.Moving
-		case currentState.Floor == 0:
-			nextState.Direction = elevstate.Up
-			nextState.Behaviour = currentState.Behaviour
-		default:
-			nextState.Direction = elevstate.Down
-			nextState.Behaviour = elevstate.Idle
-		}
-
-	default:
-		nextState.Behaviour = elevstate.Idle // elevio.Direction somehow neither Stop, Up or Down, aka. funkiness afoot
-		nextState.Direction = elevstate.Up
-	}
-	// fmt.Println("Current state: ", currentState.Behaviour, " at floor ", currentState.Floor, " with direction ", currentState.Direction)
-	// fmt.Println("Next state: ", nextState.Behaviour)
-
-	return nextState
+	return (jsonOutput)[allStates[0].ID]
 }

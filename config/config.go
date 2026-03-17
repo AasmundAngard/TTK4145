@@ -19,7 +19,7 @@ const (
 	MotorTimeoutTime  = 5 * time.Second
 	DisconnectTime    = 1 * time.Second
 	DoorOpenTime      = 3 * time.Second
-	BroadcastTime     = 10 * time.Millisecond
+	BroadcastTime     = 25 * time.Millisecond
 	InitTimeout       = 2 * time.Second
 	InitRetryInterval = 400 * time.Millisecond
 	//SyncTimeout       = 1 * time.Second

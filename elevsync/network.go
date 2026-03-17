@@ -84,13 +84,17 @@ func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(al
 	selfDataToNetworkC chan<- NetworkMsg,
 	NetworkMsgVersion int64, id string, localCallsPtr *Calls, localStatePtr *elevstate.ElevState) int64 {
 	var ReconnectRespondents []string
+
 	for len(ReconnectRespondents) < len(alivePeersList)-1 {
 		print("Waiting for responses")
 		select {
 		case incomingNetworkMsg := <-otherDataToSyncC:
 			if !slices.Contains(ReconnectRespondents, incomingNetworkMsg.SenderID) {
 				ReconnectRespondents = append(ReconnectRespondents, incomingNetworkMsg.SenderID)
+
+				oldCabCalls := OtherElevatorList.getCabCallsfromID(incomingNetworkMsg.SenderID)
 				(*OtherElevatorList).update(incomingNetworkMsg)
+				(*OtherElevatorList).updateCabCalls(incomingNetworkMsg.SenderID, oldCabCalls)
 			}
 
 		case <-networkRequestSelfDataC:
@@ -132,6 +136,15 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls, Alive: true})
 		if len(*OtherElevatorList) > config.NumElevators-1 {
 			panic("Too many elevators in the system:" + strconv.Itoa(len(*OtherElevatorList)) + " " + OtherElevatorList.getIDsString())
+		}
+	}
+}
+
+func (OtherElevatorList *OtherElevatorList) updateCabCalls(id string, incomingCabCalls CabCalls) {
+	for i, otherElevator := range *OtherElevatorList {
+		if otherElevator.ID == id {
+			(*OtherElevatorList)[i].Calls.CabCalls = incomingCabCalls
+			break
 		}
 	}
 }

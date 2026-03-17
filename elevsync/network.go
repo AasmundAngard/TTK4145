@@ -32,7 +32,7 @@ type OtherElevatorBool struct {
 
 func (OtherElevatorList *OtherElevatorList) detectReconnect(prevAlivePeers []string) bool {
 	for _, otherElevator := range *OtherElevatorList {
-		if otherElevator.Alive == true && otherElevator.Version > 0 && slices.Contains(prevAlivePeers, otherElevator.ID) == false {
+		if otherElevator.Alive == true && slices.Contains(prevAlivePeers, otherElevator.ID) == false {
 			return true
 		}
 	}
@@ -92,9 +92,7 @@ func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(al
 			if !slices.Contains(ReconnectRespondents, incomingNetworkMsg.SenderID) {
 				ReconnectRespondents = append(ReconnectRespondents, incomingNetworkMsg.SenderID)
 
-				oldCabCalls := OtherElevatorList.getCabCallsfromID(incomingNetworkMsg.SenderID)
 				(*OtherElevatorList).update(incomingNetworkMsg)
-				(*OtherElevatorList).updateCabCalls(incomingNetworkMsg.SenderID, oldCabCalls)
 			}
 
 		case <-networkRequestSelfDataC:
@@ -136,15 +134,6 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls, Alive: true})
 		if len(*OtherElevatorList) > config.NumElevators-1 {
 			panic("Too many elevators in the system:" + strconv.Itoa(len(*OtherElevatorList)) + " " + OtherElevatorList.getIDsString())
-		}
-	}
-}
-
-func (OtherElevatorList *OtherElevatorList) updateCabCalls(id string, incomingCabCalls CabCalls) {
-	for i, otherElevator := range *OtherElevatorList {
-		if otherElevator.ID == id {
-			(*OtherElevatorList)[i].Calls.CabCalls = incomingCabCalls
-			break
 		}
 	}
 }

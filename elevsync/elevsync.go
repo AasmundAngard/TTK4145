@@ -3,7 +3,7 @@ package elevsync
 import (
 	"root/elevio"
 	"root/elevstate"
-	"time"
+	"slices"
 )
 
 func Sync(id string,
@@ -57,9 +57,7 @@ func Sync(id string,
 
 			if OtherElevatorList.detectReconnect(prevAlivePeers) == true {
 				if cabCallsRestored == false {
-					time.Sleep(time.Millisecond * 100)
 					incomingCabCallsList := <-selfCabCallsToSyncC
-					//print("Received calls")
 					localCalls.mergeCabCalls(incomingCabCallsList)
 					cabCallsRestored = true
 				}
@@ -70,7 +68,7 @@ func Sync(id string,
 				//print("Merging calls forgivingly")
 			}
 
-			copy(prevAlivePeers, alivePeersList)
+			prevAlivePeers = slices.Clone(alivePeersList)
 
 			//Edge case: Another elevator is requesting its cab calls from this elevator
 		case ID := <-otherCabCallsRequestC:

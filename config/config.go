@@ -23,5 +23,5 @@ const (
 	InitTimeout       = 2 * time.Second
 	InitRetryInterval = 400 * time.Millisecond
 	//SyncTimeout       = 1 * time.Second
-	SyncTimeout = 10 * time.Millisecond
+	SyncTimeout = 500 * time.Millisecond
 )

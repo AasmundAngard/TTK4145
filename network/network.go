@@ -73,7 +73,6 @@ func Network(id string,
 	alivePeersC chan<- []string,
 	otherCabCallsRequestC chan<- string,
 	otherCabCallsToNetworkC <-chan elevsync.CabNetworkMsg,
-	otherCabCallsToNetworkC <-chan elevsync.CabNetworkMsg,
 	selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 
 	fmt.Println("initializing network")
@@ -101,7 +100,7 @@ func Network(id string,
 	go bcast.Receiver(config.StateUpdatePort, stateRxC)
 
 	// 4. Make channels for recieving cabCall requests and sending cabCalls, and recv/transmit
-	cabCallsTxC := make(chan elevsync.elevsync.CabNetworkMsg)
+	cabCallsTxC := make(chan elevsync.CabNetworkMsg)
 	cabRequestRxC := make(chan string)
 
 	go bcast.Transmitter(config.CabCallPort, cabCallsTxC)

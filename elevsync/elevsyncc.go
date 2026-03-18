@@ -174,7 +174,7 @@ func Sync(id string,
 			case !peerIsAlive && err == nil:
 				// Registrert som død, hjelp med gjennoppretting
 				otherCabCalls := OtherElevatorList.getCabCallsfromID(ID)
-				otherCabCallsToNetworkC <- CabNetworkMsg{SenderID: id, RequesterID: id, CabCalls: otherCabCalls}
+				otherCabCallsToNetworkC <- CabNetworkMsg{SenderID: id, RequesterID: ID, CabCalls: otherCabCalls}
 				OtherElevatorList.setAlive(ID, true)
 			case err != nil:
 				// Aldri sett ID før, vi har ikke dens cab calls, ignorer request

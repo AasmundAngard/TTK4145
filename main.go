@@ -16,6 +16,7 @@ import (
 )
 
 func main() {
+	time.Sleep(config.StartupWait)
 
 	idPtr := flag.String("id", "defaultID", "ID of elevator, overwrite using -id=<newId>")
 	portPtr := flag.Int("port", config.HardwarePortNumber, "Port of the hardware server, overwrite using -port=<newPort>")

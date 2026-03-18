@@ -101,7 +101,6 @@ func (self *Calls) mergeCabCalls(incomingCabCallsLists []CabCalls) {
 
 	for floor := 0; floor < config.NumFloors; floor++ {
 		mergedCabCalls[floor].NeedService = mergedCabCalls[floor].NeedService || self.CabCalls[floor].NeedService
-		mergedCabCalls[floor].Version++
 	}
 
 	(*self).CabCalls = mergedCabCalls

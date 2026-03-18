@@ -16,12 +16,13 @@ const (
 	StateUpdatePort = 16569
 	CabCallRetries  = 10
 
+	StartupWait = 5 * time.Second
+
 	MotorTimeoutTime  = 5 * time.Second
 	DisconnectTime    = 1 * time.Second
 	DoorOpenTime      = 3 * time.Second
 	BroadcastTime     = 25 * time.Millisecond
 	InitTimeout       = 2 * time.Second
 	InitRetryInterval = 400 * time.Millisecond
-	//SyncTimeout       = 1 * time.Second
-	SyncTimeout = 500 * time.Millisecond
+	SyncTimeout       = 500 * time.Millisecond
 )

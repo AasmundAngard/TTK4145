@@ -25,7 +25,7 @@ func Sync(id string,
 	var confirmedCalls CommonCalls
 	var syncedData SyncedData
 
-	var NetworkMsgVersion int64 = 0
+	var NetworkMsgVersion int64 = 1
 
 	var cabCallsRestored = false
 

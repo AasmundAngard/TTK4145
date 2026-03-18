@@ -10,14 +10,9 @@ import (
 	"time"
 )
 
-type CabNetworkMsg struct {
-	SenderID string
-	CabCalls elevsync.CabCalls
-}
-
 func initElevator(id string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 	cabRequestTxC := make(chan string)
-	cabCallsRxC := make(chan CabNetworkMsg)
+	cabCallsRxC := make(chan elevsync.CabNetworkMsg)
 
 	// For sending ID and requesting local cab calls
 	go bcast.Transmitter(config.CabRequestPort, cabRequestTxC)
@@ -74,7 +69,7 @@ func Network(id string,
 	otherDataToSyncC chan<- elevsync.NetworkMsg,
 	alivePeersC chan<- []string,
 	otherCabCallsRequestC chan<- string,
-	otherCabCallsToNetworkC <-chan elevsync.CabCalls,
+	otherCabCallsToNetworkC <-chan elevsync.CabNetworkMsg,
 	selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 
 	fmt.Println("initializing network")
@@ -102,7 +97,7 @@ func Network(id string,
 	go bcast.Receiver(config.StateUpdatePort, stateRxC)
 
 	// 4. Make channels for recieving cabCall requests and sending cabCalls, and recv/transmit
-	cabCallsTxC := make(chan CabNetworkMsg)
+	cabCallsTxC := make(chan elevsync.CabNetworkMsg)
 	cabRequestRxC := make(chan string)
 
 	go bcast.Transmitter(config.CabCallPort, cabCallsTxC)
@@ -136,52 +131,67 @@ func Network(id string,
 		for {
 			select {
 			case cabCalls := <-otherCabCallsToNetworkC:
-				// Denne metoden "låser" cab calls som skal sendes for en stund.
+				// Denne metoden starter en thread som broadcaster de gitte cab callsene
+				// cab calls som skal sendes for en stund.
 				// Om en heis connecter, krasjer og reconnecter innen kort tid,
 				fmt.Println("calls to send:")
 				fmt.Println(cabCalls)
-				var cabMsg CabNetworkMsg
-				cabMsg.CabCalls = cabCalls
-				cabMsg.SenderID = id
-				for i := 0; i < config.CabCallRetries; i++ {
-					// fmt.Println("Sending:")
-					// for _, floor := range cabCalls {
-					// 	fmt.Println(floor.NeedService)
-					// }
-					cabCallsTxC <- cabMsg
-					time.Sleep(config.InitRetryInterval)
-				}
+				// var cabMsg elevsync.CabNetworkMsg
+				// cabMsg.CabCalls = cabCalls
+				// cabMsg.SenderID = id
+				cabMsg := cabCalls
+				go broadCastCabCalls(cabMsg, cabCallsTxC)
 			default:
 				break
 
 			}
-
-			// requesterID := <-cabRequestRxC
-			// fmt.Println("Received restoration request")
-			// if requesterID != id {
-			// 	fmt.Println("not local id")
-			// 	otherCabCallsRequestC <- requesterID
-
-			// 	var cabMsg CabNetworkMsg
-			// 	cabCalls := <-otherCabCallsToNetworkC
-			// 	// fmt.Println("About to send:")
-			// 	// for _, floor := range cabCalls {
-			// 	// 	fmt.Println(floor.NeedService)
-			// 	// }
-			// 	cabMsg.CabCalls = cabCalls
-			// 	cabMsg.SenderID = id
-			// 	for i := 0; i < config.CabCallRetries; i++ {
-			// 		// fmt.Println("Sending:")
-			// 		// for _, floor := range cabCalls {
-			// 		// 	fmt.Println(floor.NeedService)
-			// 		// }
-			// 		cabCallsTxC <- cabMsg
-			// 		time.Sleep(config.InitRetryInterval)
-			// 	}
-			// }
 		}
-	}()
+		// go func() {
+		// 	for {
+		// 		select {
+		// 		case cabCalls := <-otherCabCallsToNetworkC:
+		// 			// Denne metoden "låser" cab calls som skal sendes for en stund.
+		// 			// Om en heis connecter, krasjer og reconnecter innen kort tid,
+		// 			fmt.Println("calls to send:")
+		// 			fmt.Println(cabCalls)
+		// 			var cabMsg CabNetworkMsg
+		// 			cabMsg.CabCalls = cabCalls
+		// 			cabMsg.SenderID = id
+		// 			for i := 0; i < config.CabCallRetries; i++ {
+		// 				cabCallsTxC <- cabMsg
+		// 				time.Sleep(config.InitRetryInterval)
+		// 			}
+		// 		default:
+		// 			break
 
+		// 		}
+
+		// 		// requesterID := <-cabRequestRxC
+		// 		// fmt.Println("Received restoration request")
+		// 		// if requesterID != id {
+		// 		// 	fmt.Println("not local id")
+		// 		// 	otherCabCallsRequestC <- requesterID
+
+		// 		// 	var cabMsg CabNetworkMsg
+		// 		// 	cabCalls := <-otherCabCallsToNetworkC
+		// 		// 	// fmt.Println("About to send:")
+		// 		// 	// for _, floor := range cabCalls {
+		// 		// 	// 	fmt.Println(floor.NeedService)
+		// 		// 	// }
+		// 		// 	cabMsg.CabCalls = cabCalls
+		// 		// 	cabMsg.SenderID = id
+		// 		// 	for i := 0; i < config.CabCallRetries; i++ {
+		// 		// 		// fmt.Println("Sending:")
+		// 		// 		// for _, floor := range cabCalls {
+		// 		// 		// 	fmt.Println(floor.NeedService)
+		// 		// 		// }
+		// 		// 		cabCallsTxC <- cabMsg
+		// 		// 		time.Sleep(config.InitRetryInterval)
+		// 		// 	}
+		// 		// }
+		// 	}
+		// }()
+	}()
 	fmt.Println("started network")
 	for {
 		select {
@@ -203,5 +213,12 @@ func Network(id string,
 				otherDataToSyncC <- stateUpdate
 			}
 		}
+	}
+}
+
+func broadCastCabCalls(cabMsg elevsync.CabNetworkMsg, cabCallsTxC chan<- elevsync.CabNetworkMsg) {
+	for i := 0; i < config.CabCallRetries; i++ {
+		cabCallsTxC <- cabMsg
+		time.Sleep(config.InitRetryInterval)
 	}
 }

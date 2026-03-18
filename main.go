@@ -41,7 +41,7 @@ func main() {
 
 	otherCabCallsRequestC := make(chan string, 1024)
 	selfCabCallsToSyncC := make(chan []elevsync.CabCalls, 1024)
-	otherCabCallsToNetworkC := make(chan elevsync.CabCalls, 1024)
+	otherCabCallsToNetworkC := make(chan elevsync.CabNetworkMsg, 1024)
 	networkRequestSelfDataC := make(chan struct{}, 1024)
 	selfDataToNetworkC := make(chan elevsync.NetworkMsg, 1024)
 	alivePeersC := make(chan []string, 1024)

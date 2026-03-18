@@ -122,7 +122,7 @@ func (otherElevatorList *OtherElevatorList) getCabCallsfromIDAndResetVersion(ID 
 	for i, otherElevator := range *otherElevatorList {
 		if otherElevator.ID == ID {
 			(*otherElevatorList)[i].Version = 0
-			return otherElevator.Calls.CabCalls
+			return (*otherElevatorList)[i].Calls.CabCalls
 		}
 	}
 	return cabCalls

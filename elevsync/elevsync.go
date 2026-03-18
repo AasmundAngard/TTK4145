@@ -36,10 +36,12 @@ func Sync(id string,
 
 	for {
 		select {
+		// Get cab calls in init before letting other elevators overwrite it in themselves
 		case incomingCabCallsList := <-selfCabCallsToSyncC:
 			localCalls.mergeCabCalls(incomingCabCallsList)
 			cabCallsRestored = true
 
+			//Stop elevator from getting stuck if all other elevators are initing
 		case ID := <-otherCabCallsRequestC:
 			otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromIDAndResetVersion(ID)
 			continue
@@ -60,10 +62,9 @@ func Sync(id string,
 		case incomingFinishedCall := <-completedCallToSyncC:
 			localCalls.removeCall(incomingFinishedCall)
 
-		case localState := <-selfStateToSyncC:
+		case localState = <-selfStateToSyncC:
 			localStatePtr := &localState
 			DrainChannel(selfStateToSyncC, localStatePtr)
-			//localState = incomingLocalState
 
 		case incomingNetworkMsg := <-otherDataToSyncC:
 			OtherElevatorList.update(incomingNetworkMsg)
@@ -79,17 +80,18 @@ func Sync(id string,
 
 			if OtherElevatorList.detectReconnect(prevAlivePeers) == true {
 
+				//Handles the edge case where alivePeers case get chosen before updating from each other elevators networkmsg
 				//NetworkMsgVersion = OtherElevatorList.updateSelfInOthersAndOthersInSelf(alivePeersList, alivePeersC, otherDataToSyncC, networkRequestSelfDataC, selfDataToNetworkC, NetworkMsgVersion, id, &localCalls, &localState)
 
+				//Accepts unserviced calls from other elevators and self, even if version number lower
 				localCalls.mergeHallCallsForgiving(&OtherElevatorList)
-				//print("Merging calls forgivingly")
 			}
 
 			prevAlivePeers = slices.Clone(alivePeersList)
 
 			//Edge case: Another elevator is requesting its cab calls from this elevator
-		case ID := <-otherCabCallsRequestC:
-			otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromIDAndResetVersion(ID)
+		case otherId := <-otherCabCallsRequestC:
+			otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromIDAndResetVersion(otherId)
 			continue
 		}
 

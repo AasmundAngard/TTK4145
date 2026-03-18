@@ -243,10 +243,10 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 
 	for i, otherElevator := range *OtherElevatorList {
 		if otherElevator.ID == incomingNetworkMsg.SenderID {
-			fmt.Println("update")
-			fmt.Println(otherElevator.Version, incomingNetworkMsg.Version)
+			// fmt.Println("update")
+			// fmt.Println(otherElevator.Version, incomingNetworkMsg.Version)
 			if otherElevator.Version < incomingNetworkMsg.Version {
-				fmt.Println("update newer version")
+				// fmt.Println("update newer version")
 				(*OtherElevatorList)[i].State = incomingNetworkMsg.State
 				(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
 				(*OtherElevatorList)[i].Version = incomingNetworkMsg.Version

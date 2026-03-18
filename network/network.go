@@ -133,9 +133,11 @@ func Network(id string,
 		}
 	}()
 	go func() {
+		i := 0
 		for {
 			select {
 			case cabCallMsg := <-otherCabCallsToNetworkC:
+				fmt.Println("cab calls to network")
 				// Denne metoden "låser" cab calls som skal sendes for en stund.
 				// Om en heis connecter, krasjer og reconnecter innen kort tid,
 				// fmt.Println("calls to send:")
@@ -143,7 +145,8 @@ func Network(id string,
 				// var cabMsg elevsync.CabNetworkMsg
 				// cabMsg.CabCalls = cabCalls
 				// cabMsg.SenderID = id
-				go broadCastCabCalls(cabCallMsg, cabCallsTxC)
+				go broadCastCabCalls(cabCallMsg, cabCallsTxC, i)
+				i++
 			default:
 				break
 
@@ -171,14 +174,12 @@ func Network(id string,
 			// fmt.Println("stateupdate:", stateUpdate.SenderID)
 			if stateUpdate.SenderID != id {
 				otherDataToSyncC <- stateUpdate
-				// fmt.Println("received other")
-				// fmt.Println(stateUpdate.Calls.HallCalls)
 			}
 		}
 	}
 }
 
-func broadCastCabCalls(cabMsg elevsync.CabNetworkMsg, cabCallsTxC chan<- elevsync.CabNetworkMsg) {
+func broadCastCabCalls(cabMsg elevsync.CabNetworkMsg, cabCallsTxC chan<- elevsync.CabNetworkMsg, i int) {
 	for i := 0; i < config.CabCallRetries; i++ {
 		cabCallsTxC <- cabMsg
 		time.Sleep(config.InitRetryInterval)

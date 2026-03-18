@@ -182,16 +182,23 @@ func Sync(id string,
 			// 		MergeHallCallsForgiving
 		case ID := <-otherCabCallsRequestC:
 			// ID-melding fra en heis som etterspør egne cab calls
+			// Dersom heisen ikke har rukket å detektere at den andre heisen krasjet, vil den ikke sende cab calls
 			peerIsAlive, err := OtherElevatorList.getAlive(ID) // Gir false selv om satt til alive
+			otherCabCalls := OtherElevatorList.getCabCallsfromID(ID)
+			otherCabCallsToNetworkC <- CabNetworkMsg{SenderID: id, RequesterID: ID, CabCalls: otherCabCalls}
 			switch {
 			case peerIsAlive && err == nil:
 				// Registrert som i live, trenger ikke sende noe
 				break
 			case !peerIsAlive && err == nil:
 				// Registrert som død, hjelp med gjennoppretting
-				otherCabCalls := OtherElevatorList.getCabCallsfromID(ID)
-				otherCabCallsToNetworkC <- CabNetworkMsg{SenderID: id, RequesterID: id, CabCalls: otherCabCalls}
+				// otherCabCalls := OtherElevatorList.getCabCallsfromID(ID)
+				// otherCabCallsToNetworkC <- CabNetworkMsg{SenderID: id, RequesterID: ID, CabCalls: otherCabCalls}
+				fmt.Println(ID, otherCabCalls)
+
 				OtherElevatorList.setAlive(ID, true)
+				OtherElevatorList.resetVersion(ID)
+
 			case err != nil:
 				// Aldri sett ID før, vi har ikke dens cab calls, ignorer request
 				break
@@ -206,7 +213,7 @@ func Sync(id string,
 			// Sjekk: dersom aldri sett før:
 			// 		Ignorer, vent på state message
 		case incomingCabCallsList := <-selfCabCallsToSyncC:
-			fmt.Println("received own cab calls")
+			fmt.Println("received own cab calls", incomingCabCallsList)
 			// Mottar egne cab calls
 			if !cabCallsRestored {
 				localCalls.mergeCabCalls(incomingCabCallsList)

@@ -88,10 +88,6 @@ func (OtherElevatorList OtherElevatorList) findNewAndLostPeers(alivePeersList []
 }
 
 func (OtherElevatorList *OtherElevatorList) detectReconnect(prevAlivePeers []string) bool {
-	for id := range prevAlivePeers {
-		print(id)
-	}
-
 	for _, otherElevator := range *OtherElevatorList {
 		if otherElevator.Alive == true && slices.Contains(prevAlivePeers, otherElevator.ID) == false {
 			return true

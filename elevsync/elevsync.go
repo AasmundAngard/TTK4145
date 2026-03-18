@@ -32,7 +32,6 @@ func SyncOld(id string,
 	var prevAlivePeers []string
 
 	var cabCallsRestored = false
-	i := 0
 	for {
 		select {
 		case incomingHardwareCall := <-hardwareCallToSyncC:

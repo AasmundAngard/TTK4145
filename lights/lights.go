@@ -2,11 +2,11 @@ package lights
 
 import (
 	"root/config"
+	"root/elevator"
 	"root/elevio"
-	"root/elevsync"
 )
 
-func Lights(commonCallsToLightsC <-chan elevsync.CommonCalls) {
+func Lights(commonCallsToLightsC <-chan elevator.Calls) {
 	for {
 		calls := <-commonCallsToLightsC
 		for floor := 0; floor < config.NumFloors; floor++ {

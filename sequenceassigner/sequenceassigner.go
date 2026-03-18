@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"root/config"
+	"root/elevator"
 	"root/elevsync"
 	"runtime"
 )
@@ -28,7 +29,7 @@ type assignerInput struct {
 	States       map[string]assignerState  `json:"states"`
 }
 
-func requestsAbove(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
+func requestsAbove(hallCalls elevator.HallCallsBool, cabCalls elevator.CabCallsBool, currentFloor int) bool {
 	for f := currentFloor + 1; f < config.NumFloors; f++ {
 		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
 			return true
@@ -37,7 +38,7 @@ func requestsAbove(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsB
 	return false
 }
 
-func requestsBelow(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
+func requestsBelow(hallCalls elevator.HallCallsBool, cabCalls elevator.CabCallsBool, currentFloor int) bool {
 	for f := 0; f < currentFloor; f++ {
 		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
 			return true
@@ -46,14 +47,14 @@ func requestsBelow(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsB
 	return false
 }
 
-func requestsHere(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
+func requestsHere(hallCalls elevator.HallCallsBool, cabCalls elevator.CabCallsBool, currentFloor int) bool {
 	if hallCalls[currentFloor][0] || hallCalls[currentFloor][1] || cabCalls[currentFloor] {
 		return true
 	}
 	return false
 }
 
-func cabAbove(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
+func cabAbove(cabCalls elevator.CabCallsBool, currentFloor int) bool {
 	for f := currentFloor + 1; f < config.NumFloors; f++ {
 		if cabCalls[f] {
 			return true
@@ -62,7 +63,7 @@ func cabAbove(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	return false
 }
 
-func cabBelow(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
+func cabBelow(cabCalls elevator.CabCallsBool, currentFloor int) bool {
 	for f := 0; f < currentFloor; f++ {
 		if cabCalls[f] {
 			return true
@@ -71,7 +72,7 @@ func cabBelow(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	return false
 }
 
-func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.HallCallsBool) elevsync.HallCallsBool {
+func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevator.HallCallsBool) elevator.HallCallsBool {
 	execFile := ""
 
 	switch runtime.GOOS {
@@ -110,7 +111,7 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 	}
 
 	if len(states) == 0 {
-		return elevsync.HallCallsBool{}
+		return elevator.HallCallsBool{}
 	}
 	input := assignerInput{
 		HallRequests: hallRequests,

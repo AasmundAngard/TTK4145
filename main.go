@@ -6,7 +6,6 @@ import (
 	"root/config"
 	"root/elevator"
 	"root/elevio"
-	"root/elevstate"
 	"root/elevsync"
 	"root/lights"
 	"root/network"
@@ -30,13 +29,13 @@ func main() {
 	hardwareReconnectedC := make(chan bool, 1024)
 	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors, hardwareDisconnectedC, hardwareReconnectedC)
 
-	selfStateToMainC := make(chan elevstate.ElevState, 1024)
-	selfCallsToElevatorC := make(chan elevsync.CommonCalls, 1024)
-	commonCallsToLightsC := make(chan elevsync.CommonCalls, 1024)
+	selfStateToMainC := make(chan elevator.ElevState, 1024)
+	selfCallsToElevatorC := make(chan elevator.Calls, 1024)
+	commonCallsToLightsC := make(chan elevator.Calls, 1024)
 
 	hardWareCallToSyncC := make(chan elevio.CallEvent, 1024)
 	completedCallToSyncC := make(chan elevio.CallEvent, 1024)
-	selfStateToSyncC := make(chan elevstate.ElevState, 1024)
+	selfStateToSyncC := make(chan elevator.ElevState, 1024)
 	syncedVariablesToMainC := make(chan elevsync.SyncedData, 1024)
 	otherDataToSyncC := make(chan elevsync.NetworkMsg, 1024)
 
@@ -77,8 +76,8 @@ func main() {
 		alivePeersC,
 	)
 
-	var state elevstate.ElevState
-	var prevState elevstate.ElevState
+	var state elevator.ElevState
+	var prevState elevator.ElevState
 	var syncedVariables elevsync.SyncedData
 	var prevSyncedVariables elevsync.SyncedData
 
@@ -110,10 +109,10 @@ func main() {
 
 func updateElevator(
 	id string,
-	state elevstate.ElevState,
+	state elevator.ElevState,
 	synced elevsync.SyncedData,
-	selfCallsToElevatorC chan<- elevsync.CommonCalls,
-	commonCallsToLightsC chan<- elevsync.CommonCalls,
+	selfCallsToElevatorC chan<- elevator.Calls,
+	commonCallsToLightsC chan<- elevator.Calls,
 ) {
 
 	allStates := append(
@@ -127,12 +126,12 @@ func updateElevator(
 		synced.OtherElevatorBoolList...,
 	)
 
-	selfCallsToElevatorC <- elevsync.CommonCalls{
+	selfCallsToElevatorC <- elevator.Calls{
 		HallCalls: sequenceassigner.AssignCalls(allStates, synced.SyncedHallCalls),
 		CabCalls:  synced.LocalCabCalls,
 	}
 
-	commonCallsToLightsC <- elevsync.CommonCalls{
+	commonCallsToLightsC <- elevator.Calls{
 		HallCalls: synced.SyncedHallCalls,
 		CabCalls:  synced.LocalCabCalls,
 	}

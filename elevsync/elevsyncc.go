@@ -26,12 +26,56 @@ func Sync(id string,
 	var confirmedCalls CommonCalls
 	var syncedData SyncedData
 
-	var NetworkMsgVersion int64 = 0
+	var NetworkMsgVersion int64 = 1
 
 	// var prevAlivePeers []string
 
 	var cabCallsRestored = false
 	// i := 0
+
+	fmt.Println("Sync init")
+
+	for {
+		select {
+		case ID := <-otherCabCallsRequestC:
+			// ID-melding fra en heis som etterspør egne cab calls
+			peerIsAlive, err := OtherElevatorList.getAlive(ID) // Gir false selv om satt til alive
+			switch {
+			case peerIsAlive && err == nil:
+				// Registrert som i live, trenger ikke sende noe
+				break
+			case !peerIsAlive && err == nil:
+				// Registrert som død, hjelp med gjennoppretting
+				otherCabCalls := OtherElevatorList.getCabCallsfromID(ID)
+				OtherElevatorList.resetVersionFromID(ID)
+				otherCabCallsToNetworkC <- CabNetworkMsg{SenderID: id, RequesterID: ID, CabCalls: otherCabCalls}
+				OtherElevatorList.setAlive(ID, true)
+			case err != nil:
+				// Aldri sett ID før, vi har ikke dens cab calls, ignorer request
+				break
+			}
+
+		case incomingCabCallsList := <-selfCabCallsToSyncC:
+			fmt.Println("received own cab calls")
+			// Mottar egne cab calls		case incomingCabCallsList := <-selfCabCallsToSyncC:
+			fmt.Println("received own cab calls")
+			// Mottar egne cab calls
+			if !cabCallsRestored {
+				localCalls.mergeCabCalls(incomingCabCallsList)
+			}
+			cabCallsRestored = true
+			if !cabCallsRestored {
+				localCalls.mergeCabCalls(incomingCabCallsList)
+			}
+			cabCallsRestored = true
+		}
+
+		if cabCallsRestored {
+			break
+		}
+	}
+
+	fmt.Println("Sync init done")
 
 	for {
 		select {
@@ -152,7 +196,7 @@ func Sync(id string,
 				}
 			}
 			// Sjekk: dersom markert som ikke alive, nå alive:
-			// 		Hent dens cab calls
+			// 		Hent dens cab callsVersion
 			// 		Send til network-loop
 			// 			Netork starter en ny thread som broadcaster disse cab calls og ID en stund
 			// 		Marker som alive
@@ -174,6 +218,7 @@ func Sync(id string,
 			case !peerIsAlive && err == nil:
 				// Registrert som død, hjelp med gjennoppretting
 				otherCabCalls := OtherElevatorList.getCabCallsfromID(ID)
+				OtherElevatorList.resetVersionFromID(ID)
 				otherCabCallsToNetworkC <- CabNetworkMsg{SenderID: id, RequesterID: ID, CabCalls: otherCabCalls}
 				OtherElevatorList.setAlive(ID, true)
 			case err != nil:
@@ -189,13 +234,6 @@ func Sync(id string,
 			// 		Marker som alive
 			// Sjekk: dersom aldri sett før:
 			// 		Ignorer, vent på state message
-		case incomingCabCallsList := <-selfCabCallsToSyncC:
-			fmt.Println("received own cab calls")
-			// Mottar egne cab calls
-			if !cabCallsRestored {
-				localCalls.mergeCabCalls(incomingCabCallsList)
-			}
-			cabCallsRestored = true
 
 		}
 

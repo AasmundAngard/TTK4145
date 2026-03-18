@@ -229,6 +229,15 @@ func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID string) CabCalls
 	return cabCalls
 }
 
+func (otherElevatorList *OtherElevatorList) resetVersionFromID(ID string) {
+
+	for i, otherElevator := range *otherElevatorList {
+		if otherElevator.ID == ID {
+			(*otherElevatorList)[i].Version = 0
+		}
+	}
+}
+
 func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg) {
 	elevatorFound := false
 

@@ -58,11 +58,19 @@ func Sync(id string,
 			// Returnerer true,nil for alive, false,nil for tidligere frakoblet
 			// false,error for aldri sett før
 			otherIsAlive, err := OtherElevatorList.getAlive(incomingNetworkMsg.SenderID)
+			// fmt.Println(otherIsAlive, incomingNetworkMsg.Calls.HallCalls)
 			switch {
 			case otherIsAlive && err == nil:
 				// Fant heis, og heis i live
+
+				// fmt.Println("hallcalls2 other")
+				// fmt.Println(incomingNetworkMsg.Calls.HallCalls)
+				// ====================================
+				// Klarer ikke å ordentlig oppdatere hall calls og versjonsnummer til calls til den andre heisen
 				localCalls.mergeHallCalls(incomingNetworkMsg.Calls)
 				OtherElevatorList.update(incomingNetworkMsg)
+				// fmt.Println("hallcalls3 other")
+				// fmt.Println(OtherElevatorList[0].Calls.HallCalls)
 			// 		Streng versjon-merge hall calls
 			// 		Oppdater lokal OtherElevator
 			case !otherIsAlive && err == nil:
@@ -75,6 +83,12 @@ func Sync(id string,
 				// fmt.Println(otherCabCalls)
 				// otherCabCallsToNetworkC <- otherCabCalls // Be network broadcaste cabcalls med id
 				OtherElevatorList.setAlive(incomingNetworkMsg.SenderID, true)
+				fmt.Println("before resetversion")
+				fmt.Println(OtherElevatorList[0].Version)
+
+				OtherElevatorList.resetVersion(incomingNetworkMsg.SenderID)
+				fmt.Println("after reset version")
+				fmt.Println(OtherElevatorList[0].Version)
 				OtherElevatorList.updateWithoutVersionCheck(incomingNetworkMsg)
 				OtherElevatorList.setHallCalls(incomingNetworkMsg.SenderID, incomingNetworkMsg.Calls.HallCalls)
 				localCalls.mergeHallCallsForgiving(&OtherElevatorList)
@@ -131,6 +145,8 @@ func Sync(id string,
 					// Kun broadcast ved mottatt ID
 					// otherCabCallsToNetworkC <- otherCabCalls
 					OtherElevatorList.setAlive(otherId, true)
+					OtherElevatorList.resetVersion(otherId)
+
 				case err != nil:
 					// Aldri sett elevator
 					// Ignorer, vent til networkMsg med status fra other!
@@ -198,8 +214,15 @@ func Sync(id string,
 			cabCallsRestored = true
 
 		}
-
+		// fmt.Println("local hall")
+		// fmt.Println(localCalls.HallCalls)
+		// fmt.Println("other call")
+		// for i := range OtherElevatorList {
+		// 	fmt.Println(OtherElevatorList[i].Calls.HallCalls)
+		// }
 		confirmedCalls = localCalls.decideCommonCalls(OtherElevatorList, localState)
+		// fmt.Println("confirmed hall")
+		// fmt.Println(confirmedCalls.HallCalls)
 
 		syncedData.format(confirmedCalls, OtherElevatorList)
 

@@ -56,6 +56,15 @@ func (OtherElevatorList *OtherElevatorList) setAlive(SenderID string, aliveStatu
 		}
 	}
 }
+func (OtherElevatorList *OtherElevatorList) resetVersion(SenderID string) {
+	for i, elevator := range *OtherElevatorList {
+		if elevator.ID == SenderID {
+			(*OtherElevatorList)[i].Version = 0
+			return
+		}
+	}
+}
+
 func (OtherElevatorList *OtherElevatorList) setHallCalls(SenderID string, HallCalls HallCalls) {
 	for i, elevator := range *OtherElevatorList {
 		if elevator.ID == SenderID {
@@ -234,7 +243,10 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 
 	for i, otherElevator := range *OtherElevatorList {
 		if otherElevator.ID == incomingNetworkMsg.SenderID {
+			fmt.Println("update")
+			fmt.Println(otherElevator.Version, incomingNetworkMsg.Version)
 			if otherElevator.Version < incomingNetworkMsg.Version {
+				fmt.Println("update newer version")
 				(*OtherElevatorList)[i].State = incomingNetworkMsg.State
 				(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
 				(*OtherElevatorList)[i].Version = incomingNetworkMsg.Version

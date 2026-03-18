@@ -55,6 +55,8 @@ func broadcastState(stateTxC chan<- elevsync.NetworkMsg, requestStatusC chan<- s
 		requestStatusC <- struct{}{}
 
 		status := <-selfDataToNetworkC
+		// fmt.Println("broadcasting")
+		// fmt.Println(status.Calls.HallCalls)
 
 		stateTxC <- status
 		time.Sleep(config.BroadcastTime)
@@ -134,8 +136,8 @@ func Network(id string,
 				// Denne metoden starter en thread som broadcaster de gitte cab callsene
 				// cab calls som skal sendes for en stund.
 				// Om en heis connecter, krasjer og reconnecter innen kort tid,
-				fmt.Println("calls to send:")
-				fmt.Println(cabCalls)
+				// fmt.Println("calls to send:")
+				// fmt.Println(cabCalls)
 				// var cabMsg elevsync.CabNetworkMsg
 				// cabMsg.CabCalls = cabCalls
 				// cabMsg.SenderID = id
@@ -209,8 +211,11 @@ func Network(id string,
 		// create a NetworkRecieveMsg and add the info from NetworkTransmitMsg into it, plus sender id
 		// Send on recvFromNetwork channel
 		case stateUpdate := <-stateRxC:
+			// fmt.Println("stateupdate:", stateUpdate.SenderID)
 			if stateUpdate.SenderID != id {
 				otherDataToSyncC <- stateUpdate
+				// fmt.Println("received other")
+				// fmt.Println(stateUpdate.Calls.HallCalls)
 			}
 		}
 	}

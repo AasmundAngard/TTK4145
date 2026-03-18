@@ -31,10 +31,6 @@ type OtherElevatorBool struct {
 }
 
 func (OtherElevatorList *OtherElevatorList) detectReconnect(prevAlivePeers []string) bool {
-	for id := range prevAlivePeers {
-		print(id)
-	}
-
 	for _, otherElevator := range *OtherElevatorList {
 		if otherElevator.Alive == true && slices.Contains(prevAlivePeers, otherElevator.ID) == false {
 			return true
@@ -120,11 +116,12 @@ func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(al
 	return NetworkMsgVersion
 }
 
-func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID string) CabCalls {
+func (otherElevatorList *OtherElevatorList) getCabCallsfromIDAndResetVersion(ID string) CabCalls {
 	cabCalls := newCabCalls()
 
-	for _, otherElevator := range otherElevatorList {
+	for i, otherElevator := range *otherElevatorList {
 		if otherElevator.ID == ID {
+			(*otherElevatorList)[i].Version = 0
 			return otherElevator.Calls.CabCalls
 		}
 	}

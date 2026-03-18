@@ -26,11 +26,31 @@ func Sync(id string,
 	var confirmedCalls CommonCalls
 	var syncedData SyncedData
 
-	var NetworkMsgVersion int64 = 0
+	var NetworkMsgVersion int64 = 1
 
 	var prevAlivePeers []string
 
 	var cabCallsRestored = false
+
+	print("sync init")
+
+	for {
+		select {
+		case incomingCabCallsList := <-selfCabCallsToSyncC:
+			localCalls.mergeCabCalls(incomingCabCallsList)
+			cabCallsRestored = true
+
+		case ID := <-otherCabCallsRequestC:
+			otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromIDAndResetVersion(ID)
+			continue
+		}
+
+		if cabCallsRestored == true {
+			break
+		}
+	}
+
+	print("sync init finished")
 
 	for {
 		select {
@@ -40,8 +60,10 @@ func Sync(id string,
 		case incomingFinishedCall := <-completedCallToSyncC:
 			localCalls.removeCall(incomingFinishedCall)
 
-		case incomingLocalState := <-selfStateToSyncC:
-			localState = incomingLocalState
+		case localState := <-selfStateToSyncC:
+			localStatePtr := &localState
+			DrainChannel(selfStateToSyncC, localStatePtr)
+			//localState = incomingLocalState
 
 		case incomingNetworkMsg := <-otherDataToSyncC:
 			OtherElevatorList.update(incomingNetworkMsg)
@@ -56,13 +78,8 @@ func Sync(id string,
 			OtherElevatorList.updateAliveStatus(alivePeersList)
 
 			if OtherElevatorList.detectReconnect(prevAlivePeers) == true {
-				if cabCallsRestored == false {
-					incomingCabCallsList := <-selfCabCallsToSyncC
-					localCalls.mergeCabCalls(incomingCabCallsList)
-					cabCallsRestored = true
-				}
 
-				NetworkMsgVersion = OtherElevatorList.updateSelfInOthersAndOthersInSelf(alivePeersList, alivePeersC, otherDataToSyncC, networkRequestSelfDataC, selfDataToNetworkC, NetworkMsgVersion, id, &localCalls, &localState)
+				//NetworkMsgVersion = OtherElevatorList.updateSelfInOthersAndOthersInSelf(alivePeersList, alivePeersC, otherDataToSyncC, networkRequestSelfDataC, selfDataToNetworkC, NetworkMsgVersion, id, &localCalls, &localState)
 
 				localCalls.mergeHallCallsForgiving(&OtherElevatorList)
 				//print("Merging calls forgivingly")
@@ -72,8 +89,7 @@ func Sync(id string,
 
 			//Edge case: Another elevator is requesting its cab calls from this elevator
 		case ID := <-otherCabCallsRequestC:
-			//print("Request calls")
-			otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromID(ID)
+			otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromIDAndResetVersion(ID)
 			continue
 		}
 

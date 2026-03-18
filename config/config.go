@@ -22,6 +22,7 @@ const (
 	BroadcastTime     = 50 * time.Millisecond
 	InitTimeout       = 2 * time.Second
 	InitRetryInterval = 400 * time.Millisecond
+	StartupWait       = 5 * time.Second
 	//SyncTimeout       = 1 * time.Second
 	SyncTimeout = 500 * time.Millisecond
 )

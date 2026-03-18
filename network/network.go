@@ -19,25 +19,35 @@ func initElevator(id string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 	cabRequestTxC := make(chan string)
 	cabCallsRxC := make(chan CabNetworkMsg)
 
+	// For sending ID and requesting local cab calls
 	go bcast.Transmitter(config.CabRequestPort, cabRequestTxC)
+	// For receiving cab call restorations from other elevators
 	go bcast.Receiver(config.CabCallPort, cabCallsRxC)
 
 	var collectedCalls []elevsync.CabCalls
 	var collectedIDs []string
 
 	timeout := time.After(config.InitTimeout)
-
+	fmt.Println("init elevator network?")
 	for len(collectedIDs) < config.NumElevators {
+		fmt.Println("initElevatorloop")
 		select {
 		case msg := <-cabCallsRxC:
+			fmt.Println("received")
+			fmt.Println(msg)
 			if !slices.Contains(collectedIDs, msg.SenderID) {
+				fmt.Println("append msg")
 				collectedCalls = append(collectedCalls, msg.CabCalls)
+				fmt.Println("collectedCalls")
+				fmt.Println(collectedCalls)
 				collectedIDs = append(collectedIDs, msg.SenderID)
 			}
 		case <-timeout:
+			fmt.Println("init timeout")
 			selfCabCallsToSyncC <- collectedCalls
 			return
 		default:
+			fmt.Println("init default")
 			cabRequestTxC <- id
 			time.Sleep(config.InitRetryInterval)
 		}
@@ -100,9 +110,12 @@ func Network(id string,
 
 	time.Sleep(time.Second)
 	// Initialize (ask for cab calls)
-	go broadcastState(stateTxC, networkRequestSelfDataC, selfDataToNetworkC)
-
+	fmt.Println("init network start")
 	initElevator(id, selfCabCallsToSyncC)
+	fmt.Println("init network end")
+
+	go broadcastState(stateTxC, networkRequestSelfDataC, selfDataToNetworkC)
+	fmt.Println("broadcast state")
 
 	// Dillemma: Need to broadcast status at set intervals, but the rest should just be a loop that collects responses from channels
 	// 5. (Solulu): make a function for bcasting status that is its own thread duh
@@ -112,18 +125,60 @@ func Network(id string,
 	go func() {
 		for {
 			requesterID := <-cabRequestRxC
+			// Received ID asking for cab calls
 			if requesterID != id {
+				fmt.Println("not local id")
 				otherCabCallsRequestC <- requesterID
-
+			}
+		}
+	}()
+	go func() {
+		for {
+			select {
+			case cabCalls := <-otherCabCallsToNetworkC:
+				// Denne metoden "låser" cab calls som skal sendes for en stund.
+				// Om en heis connecter, krasjer og reconnecter innen kort tid,
+				fmt.Println("calls to send:")
+				fmt.Println(cabCalls)
 				var cabMsg CabNetworkMsg
-				cabCalls := <-otherCabCallsToNetworkC
 				cabMsg.CabCalls = cabCalls
 				cabMsg.SenderID = id
 				for i := 0; i < config.CabCallRetries; i++ {
+					// fmt.Println("Sending:")
+					// for _, floor := range cabCalls {
+					// 	fmt.Println(floor.NeedService)
+					// }
 					cabCallsTxC <- cabMsg
 					time.Sleep(config.InitRetryInterval)
 				}
+			default:
+				break
+
 			}
+
+			// requesterID := <-cabRequestRxC
+			// fmt.Println("Received restoration request")
+			// if requesterID != id {
+			// 	fmt.Println("not local id")
+			// 	otherCabCallsRequestC <- requesterID
+
+			// 	var cabMsg CabNetworkMsg
+			// 	cabCalls := <-otherCabCallsToNetworkC
+			// 	// fmt.Println("About to send:")
+			// 	// for _, floor := range cabCalls {
+			// 	// 	fmt.Println(floor.NeedService)
+			// 	// }
+			// 	cabMsg.CabCalls = cabCalls
+			// 	cabMsg.SenderID = id
+			// 	for i := 0; i < config.CabCallRetries; i++ {
+			// 		// fmt.Println("Sending:")
+			// 		// for _, floor := range cabCalls {
+			// 		// 	fmt.Println(floor.NeedService)
+			// 		// }
+			// 		cabCallsTxC <- cabMsg
+			// 		time.Sleep(config.InitRetryInterval)
+			// 	}
+			// }
 		}
 	}()
 

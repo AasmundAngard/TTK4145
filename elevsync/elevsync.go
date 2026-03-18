@@ -1,12 +1,13 @@
 package elevsync
 
 import (
+	"fmt"
 	"root/elevio"
 	"root/elevstate"
 	"slices"
 )
 
-func Sync(id string,
+func SyncOld(id string,
 	hardwareCallToSyncC <-chan elevio.CallEvent,
 	completedCallToSyncC <-chan elevio.CallEvent,
 	selfStateToSyncC <-chan elevstate.ElevState,
@@ -31,7 +32,7 @@ func Sync(id string,
 	var prevAlivePeers []string
 
 	var cabCallsRestored = false
-
+	i := 0
 	for {
 		select {
 		case incomingHardwareCall := <-hardwareCallToSyncC:
@@ -62,7 +63,9 @@ func Sync(id string,
 					cabCallsRestored = true
 				}
 
-				NetworkMsgVersion = OtherElevatorList.updateSelfInOthersAndOthersInSelf(alivePeersList, alivePeersC, otherDataToSyncC, networkRequestSelfDataC, selfDataToNetworkC, NetworkMsgVersion, id, &localCalls, &localState)
+				// =====================================
+				// Denne funksjonen overskriver cab calls
+				NetworkMsgVersion = OtherElevatorList.updateSelfInOthersAndOthersInSelf(alivePeersList, alivePeersC, otherDataToSyncC, networkRequestSelfDataC, selfDataToNetworkC, NetworkMsgVersion, id, &localCalls, &localState, otherCabCallsRequestC, otherCabCallsToNetworkC)
 
 				localCalls.mergeHallCallsForgiving(&OtherElevatorList)
 				//print("Merging calls forgivingly")
@@ -72,11 +75,30 @@ func Sync(id string,
 
 			//Edge case: Another elevator is requesting its cab calls from this elevator
 		case ID := <-otherCabCallsRequestC:
+			// En heis spør om sine cab calls
 			//print("Request calls")
-			otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromID(ID)
+			fmt.Println("request calls:")
+			// otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromID(ID)
+			for _, elev := range OtherElevatorList {
+				for _, floor := range elev.Calls.CabCalls {
+					fmt.Println(floor.NeedService)
+				}
+			}
+			// Dette gir false for alle når requesten skjer
+
+			cabBalls := OtherElevatorList.getCabCallsfromID(ID)
+			for _, floor := range cabBalls {
+				fmt.Println(floor.NeedService)
+			}
+			otherCabCallsToNetworkC <- cabBalls
 			continue
 		}
-
+		// for i := range OtherElevatorList {
+		// 	fmt.Println(i)
+		// 	for _, floor := range OtherElevatorList[i].Calls.CabCalls {
+		// 		fmt.Println(floor)
+		// 	}
+		// }
 		confirmedCalls = localCalls.decideCommonCalls(OtherElevatorList, localState)
 
 		syncedData.format(confirmedCalls, OtherElevatorList)

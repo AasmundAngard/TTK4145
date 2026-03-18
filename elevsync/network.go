@@ -1,6 +1,7 @@
 package elevsync
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"root/config"
@@ -28,6 +29,56 @@ type OtherElevatorBool struct {
 	ID           string
 	State        elevstate.ElevState
 	CabCallsBool CabCallsBool
+}
+
+func (OtherElevatorList *OtherElevatorList) getAlive(ID string) (bool, error) {
+	for _, otherElevator := range *OtherElevatorList {
+		if otherElevator.ID == ID && otherElevator.Alive {
+			return true, nil
+		} else if otherElevator.ID == ID && !otherElevator.Alive {
+			return false, nil
+		}
+	}
+	return false, errors.New("ID not found")
+}
+
+func (OtherElevatorList *OtherElevatorList) setAlive(SenderID string, aliveStatus bool) {
+	for i, elevator := range *OtherElevatorList {
+		if elevator.ID == SenderID {
+			(*OtherElevatorList)[i].Alive = aliveStatus
+			return
+		}
+	}
+}
+func (OtherElevatorList *OtherElevatorList) setHallCalls(SenderID string, HallCalls HallCalls) {
+	for i, elevator := range *OtherElevatorList {
+		if elevator.ID == SenderID {
+			(*OtherElevatorList)[i].Calls.HallCalls = HallCalls
+			return
+		}
+	}
+}
+
+func (OtherElevatorList OtherElevatorList) findNewAndLostPeers(alivePeersList []string) ([]string, []string) {
+	var newPeers []string
+	var lostPeers []string
+	for _, peer := range alivePeersList {
+		newPeers = append(newPeers, peer)
+		for _, elevator := range OtherElevatorList {
+			if elevator.ID == peer {
+				newPeers = newPeers[:len(newPeers)-1]
+			}
+		}
+	}
+	for _, elevator := range OtherElevatorList {
+		lostPeers = append(lostPeers, elevator.ID)
+		for _, peer := range alivePeersList {
+			if elevator.ID == peer {
+				lostPeers = lostPeers[:len(lostPeers)-1]
+			}
+		}
+	}
+	return newPeers, lostPeers
 }
 
 func (OtherElevatorList *OtherElevatorList) detectReconnect(prevAlivePeers []string) bool {
@@ -85,7 +136,7 @@ func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(al
 	otherDataToSyncC <-chan NetworkMsg,
 	networkRequestSelfDataC <-chan struct{},
 	selfDataToNetworkC chan<- NetworkMsg,
-	NetworkMsgVersion int64, id string, localCallsPtr *Calls, localStatePtr *elevstate.ElevState) int64 {
+	NetworkMsgVersion int64, id string, localCallsPtr *Calls, localStatePtr *elevstate.ElevState, otherCabCallsRequestC <-chan string, otherCabCallsToNetworkC chan<- CabCalls) int64 {
 
 	var ReconnectRespondents []string
 	var incomingNetworkMsg NetworkMsg
@@ -99,20 +150,61 @@ func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(al
 		}
 
 		select {
+		//===========================
+		// Denne må stå først, for at heisen skal begynne å sende ut det den har, før den mottar oppdatert state.
+		// Hvorfor skal vi egentlig måtte ha de andre?
+		case ID := <-otherCabCallsRequestC:
+			// Heis sender ID og spør om sine cab calls
+			//print("Request calls")
+			fmt.Println("request calls 2:")
+			// otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromID(ID)
+			for _, elev := range *OtherElevatorList {
+				for _, floor := range elev.Calls.CabCalls {
+					fmt.Println(floor.NeedService)
+				}
+			}
+			// Dette gir false for alle når requesten skjer
+
+			cabBalls := OtherElevatorList.getCabCallsfromID(ID)
+			for _, floor := range cabBalls {
+				fmt.Println(floor.NeedService)
+			}
+			otherCabCallsToNetworkC <- cabBalls
+			continue
 
 		case incomingNetworkMsg := <-otherDataToSyncC:
+			// Mottar nettverk-melding
+			// Kan motta melding fra oppstartende heis med feil cab calls
 			if !slices.Contains(ReconnectRespondents, incomingNetworkMsg.SenderID) {
 				ReconnectRespondents = append(ReconnectRespondents, incomingNetworkMsg.SenderID)
-
+				fmt.Println("before without version check")
+				for _, elev := range *OtherElevatorList {
+					for _, floor := range elev.Calls.CabCalls {
+						fmt.Println(floor.NeedService)
+					}
+				}
+				fmt.Println(incomingNetworkMsg)
+				// Oppstartende heis sender sin egen state før den har mottatt sine cab calls
 				(*OtherElevatorList).updateWithoutVersionCheck(incomingNetworkMsg)
+				fmt.Println("after without version check")
+				for _, elev := range *OtherElevatorList {
+					for _, floor := range elev.Calls.CabCalls {
+						fmt.Println(floor.NeedService)
+					}
+				}
 			}
 
 		case <-networkRequestSelfDataC:
+			// Network spør hele tiden om lokal state for å sende den
 			selfDataToNetworkC <- NetworkMsg{Version: NetworkMsgVersion, SenderID: id, Calls: *localCallsPtr, State: *localStatePtr}
 			NetworkMsgVersion++
 
 		case alivePeersList := <-alivePeersC:
+			// Her mottas oppdatering om ny peer
+			// Burde man bare sende cab calls med en gang kanskje?
+			// Samme kanal som elevsync.go
 			OtherElevatorList.updateAliveStatus(alivePeersList)
+
 		}
 	}
 
@@ -175,7 +267,8 @@ func (OtherElevatorList *OtherElevatorList) updateWithoutVersionCheck(incomingNe
 	}
 }
 
-func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []string) {
+func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []string) []string {
+	returnedElevators := []string{}
 
 	for i, otherElevator := range *OtherElevatorList {
 		alive := false
@@ -185,11 +278,17 @@ func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []s
 				break
 			}
 		}
+		if (*OtherElevatorList)[i].Alive == false && alive == true {
+			// Reconnect
+			returnedElevators = append(returnedElevators, (*OtherElevatorList).getIDsString())
+
+		}
 		(*OtherElevatorList)[i].Alive = alive
 		if !alive {
 			fmt.Println("Elevator " + otherElevator.ID + " is dead.")
 		}
 	}
+	return returnedElevators
 }
 
 func (OtherElevatorList OtherElevatorList) workingElevsOnlyToBool() []OtherElevatorBool {

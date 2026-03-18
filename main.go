@@ -81,9 +81,6 @@ func main() {
 	var syncedVariables elevsync.SyncedData
 	var prevSyncedVariables elevsync.SyncedData
 
-	syncTicker := time.NewTicker(time.Hour)
-	// syncTicker := time.NewTicker(config.SyncTimeout)
-
 	for {
 
 		select {
@@ -97,42 +94,29 @@ func main() {
 				break
 			}
 			prevSyncedVariables = syncedVariables
-			updateElevator(id, state, syncedVariables, selfCallsToElevatorC, commonCallsToLightsC)
-		case <-syncTicker.C:
-			updateElevator(id, state, syncedVariables, selfCallsToElevatorC, commonCallsToLightsC)
+			allStates := append(
+				[]elevsync.OtherElevatorBool{
+					{
+						ID:           id,
+						State:        state,
+						CabCallsBool: syncedVariables.LocalCabCalls,
+					},
+				},
+				syncedVariables.OtherElevatorBoolList...,
+			)
+
+			selfCallsToElevatorC <- elevator.Calls{
+				HallCalls: sequenceassigner.AssignCalls(allStates, syncedVariables.SyncedHallCalls),
+				CabCalls:  syncedVariables.LocalCabCalls,
+			}
+
+			commonCallsToLightsC <- elevator.Calls{
+				HallCalls: syncedVariables.SyncedHallCalls,
+				CabCalls:  syncedVariables.LocalCabCalls,
+			}
 		case <-hardwareDisconnectedC:
 			state.MotorStop = true
 			selfStateToSyncC <- state
 		}
-	}
-}
-
-func updateElevator(
-	id string,
-	state elevator.ElevState,
-	synced elevsync.SyncedData,
-	selfCallsToElevatorC chan<- elevator.Calls,
-	commonCallsToLightsC chan<- elevator.Calls,
-) {
-
-	allStates := append(
-		[]elevsync.OtherElevatorBool{
-			{
-				ID:           id,
-				State:        state,
-				CabCallsBool: synced.LocalCabCalls,
-			},
-		},
-		synced.OtherElevatorBoolList...,
-	)
-
-	selfCallsToElevatorC <- elevator.Calls{
-		HallCalls: sequenceassigner.AssignCalls(allStates, synced.SyncedHallCalls),
-		CabCalls:  synced.LocalCabCalls,
-	}
-
-	commonCallsToLightsC <- elevator.Calls{
-		HallCalls: synced.SyncedHallCalls,
-		CabCalls:  synced.LocalCabCalls,
 	}
 }

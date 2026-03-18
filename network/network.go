@@ -10,7 +10,6 @@ import (
 	"time"
 )
 
-
 func initElevator(id string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 	cabRequestTxC := make(chan string)
 	cabCallsRxC := make(chan elevsync.CabNetworkMsg)
@@ -74,6 +73,7 @@ func Network(id string,
 	alivePeersC chan<- []string,
 	otherCabCallsRequestC chan<- string,
 	otherCabCallsToNetworkC <-chan elevsync.CabNetworkMsg,
+	otherCabCallsToNetworkC <-chan elevsync.CabNetworkMsg,
 	selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 
 	fmt.Println("initializing network")
@@ -101,7 +101,7 @@ func Network(id string,
 	go bcast.Receiver(config.StateUpdatePort, stateRxC)
 
 	// 4. Make channels for recieving cabCall requests and sending cabCalls, and recv/transmit
-	cabCallsTxC := make(chan elevsync.CabNetworkMsg)
+	cabCallsTxC := make(chan elevsync.elevsync.CabNetworkMsg)
 	cabRequestRxC := make(chan string)
 
 	go bcast.Transmitter(config.CabCallPort, cabCallsTxC)
@@ -139,14 +139,10 @@ func Network(id string,
 				// Om en heis connecter, krasjer og reconnecter innen kort tid,
 				fmt.Println("calls to send:")
 				fmt.Println(cabCallMsg)
-				for i := 0; i < config.CabCallRetries; i++ {
-					// fmt.Println("Sending:")
-					// for _, floor := range cabCalls {
-					// 	fmt.Println(floor.NeedService)
-					// }
-					cabCallsTxC <- cabCallMsg
-					time.Sleep(config.InitRetryInterval)
-				}
+				// var cabMsg elevsync.CabNetworkMsg
+				// cabMsg.CabCalls = cabCalls
+				// cabMsg.SenderID = id
+				go broadCastCabCalls(cabCallMsg, cabCallsTxC)
 			default:
 				break
 
@@ -175,5 +171,12 @@ func Network(id string,
 				otherDataToSyncC <- stateUpdate
 			}
 		}
+	}
+}
+
+func broadCastCabCalls(cabMsg elevsync.CabNetworkMsg, cabCallsTxC chan<- elevsync.CabNetworkMsg) {
+	for i := 0; i < config.CabCallRetries; i++ {
+		cabCallsTxC <- cabMsg
+		time.Sleep(config.InitRetryInterval)
 	}
 }

@@ -17,6 +17,12 @@ type NetworkMsg struct {
 	State    elevstate.ElevState
 }
 
+type CabNetworkMsg struct {
+	SenderID    string
+	RequesterID string
+	CabCalls    CabCalls
+}
+
 type OtherElevator struct {
 	ID      string
 	Version int64

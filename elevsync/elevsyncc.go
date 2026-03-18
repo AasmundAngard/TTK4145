@@ -13,7 +13,7 @@ func Sync(id string,
 	syncedVariablesToMainC chan<- SyncedData,
 	otherDataToSyncC <-chan NetworkMsg,
 	otherCabCallsRequestC <-chan string,
-	otherCabCallsToNetworkC chan<- CabCalls,
+	otherCabCallsToNetworkC chan<- CabNetworkMsg,
 	selfCabCallsToSyncC <-chan []CabCalls,
 	networkRequestSelfDataC <-chan struct{},
 	selfDataToNetworkC chan<- NetworkMsg,
@@ -68,13 +68,14 @@ func Sync(id string,
 			case !otherIsAlive && err == nil:
 				// Fant heis, ikke i live
 				// Anta at den bare reconnecta uten restart, fordi vi ikke fikk id først
-				otherCabCalls := OtherElevatorList.getCabCallsfromID(incomingNetworkMsg.SenderID)
-				fmt.Println("network msg")
-				fmt.Println(otherCabCalls)
-				otherCabCallsToNetworkC <- otherCabCalls // Be network broadcaste cabcalls med id
+
+				// Kun resett ved mottatt ID
+				// otherCabCalls := OtherElevatorList.getCabCallsfromID(incomingNetworkMsg.SenderID)
+				// fmt.Println("network msg")
+				// fmt.Println(otherCabCalls)
+				// otherCabCallsToNetworkC <- otherCabCalls // Be network broadcaste cabcalls med id
 				OtherElevatorList.setAlive(incomingNetworkMsg.SenderID, true)
 				OtherElevatorList.updateWithoutVersionCheck(incomingNetworkMsg)
-				// OtherElevatorList.setAlive(incomingNetworkMsg.SenderID, true)
 				OtherElevatorList.setHallCalls(incomingNetworkMsg.SenderID, incomingNetworkMsg.Calls.HallCalls)
 				localCalls.mergeHallCallsForgiving(&OtherElevatorList)
 
@@ -125,10 +126,10 @@ func Sync(id string,
 					break
 				case !otherIsAlive && err == nil:
 					// Kjent elevator, og den er registrert som død
-					otherCabCalls := OtherElevatorList.getCabCallsfromID(otherId)
-					fmt.Println("alivepeers")
-					fmt.Println(otherCabCalls)
-					otherCabCallsToNetworkC <- otherCabCalls
+					// otherCabCalls := OtherElevatorList.getCabCallsfromID(otherId)
+					// Broadcast funnet cabcalls \/
+					// Kun broadcast ved mottatt ID
+					// otherCabCallsToNetworkC <- otherCabCalls
 					OtherElevatorList.setAlive(otherId, true)
 				case err != nil:
 					// Aldri sett elevator
@@ -150,7 +151,7 @@ func Sync(id string,
 					break
 				}
 			}
-			// Sjekk: dersom markert som ikke alive:
+			// Sjekk: dersom markert som ikke alive, nå alive:
 			// 		Hent dens cab calls
 			// 		Send til network-loop
 			// 			Netork starter en ny thread som broadcaster disse cab calls og ID en stund
@@ -165,32 +166,29 @@ func Sync(id string,
 			// 		MergeHallCallsForgiving
 		case ID := <-otherCabCallsRequestC:
 			// ID-melding fra en heis som etterspør egne cab calls
-			otherIsAlive, err := OtherElevatorList.getAlive(ID) // Gir false selv om satt til alive
-			fmt.Println("isalive", otherIsAlive)
+			peerIsAlive, err := OtherElevatorList.getAlive(ID) // Gir false selv om satt til alive
 			switch {
-			case otherIsAlive && err == nil:
+			case peerIsAlive && err == nil:
 				// Registrert som i live, trenger ikke sende noe
 				break
-			case !otherIsAlive && err == nil:
+			case !peerIsAlive && err == nil:
 				// Registrert som død, hjelp med gjennoppretting
 				otherCabCalls := OtherElevatorList.getCabCallsfromID(ID)
-				fmt.Println("ID request", ID)
-				fmt.Println(otherCabCalls)
-				otherCabCallsToNetworkC <- otherCabCalls
+				otherCabCallsToNetworkC <- CabNetworkMsg{SenderID: id, RequesterID: id, CabCalls: otherCabCalls}
 				OtherElevatorList.setAlive(ID, true)
-				fmt.Println(OtherElevatorList[0].ID, OtherElevatorList[0].Alive)
 			case err != nil:
 				// Aldri sett ID før, vi har ikke dens cab calls, ignorer request
 				break
 			}
-
-			// Sjekk: dersom markert som ikke alive:
+			// Sjekk: dersom markert som alive:
+			// 		Ignorer
+			// Sjekk: dersom markert som ikke alive, men kjent:
 			// 		Hent dens cab calls
 			// 		Send til network-loop
 			// 			Netork starter en ny thread som broadcaster disse cab calls og ID en stund
 			// 		Marker som alive
 			// Sjekk: dersom aldri sett før:
-			// 		Vent på state message
+			// 		Ignorer, vent på state message
 		case incomingCabCallsList := <-selfCabCallsToSyncC:
 			fmt.Println("received own cab calls")
 			// Mottar egne cab calls

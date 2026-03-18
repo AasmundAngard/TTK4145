@@ -13,6 +13,13 @@ const (
 	DoorOpen           = 2
 )
 
+type Direction int
+
+const (
+	Up   Direction = 0
+	Down Direction = 1
+)
+
 type ElevState struct {
 	Behaviour      Behaviour
 	Floor          int
@@ -45,5 +52,38 @@ func (b Behaviour) String() string {
 		return "doorOpen"
 	default:
 		panic(strconv.Itoa(int(b)))
+	}
+}
+
+func (d Direction) Opposite() Direction {
+	switch d {
+	case Up:
+		return Down
+	case Down:
+		return Up
+	default:
+		panic("Invalid Direction")
+	}
+}
+
+func (d Direction) ToMD() elevio.MotorDirection {
+	switch d {
+	case Up:
+		return elevio.MD_Up
+	case Down:
+		return elevio.MD_Down
+	default:
+		panic("Invalid Direction")
+	}
+}
+
+func (d Direction) String() string {
+	switch d {
+	case Up:
+		return "up"
+	case Down:
+		return "down"
+	default:
+		panic(strconv.Itoa(int(d)))
 	}
 }

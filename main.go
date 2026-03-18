@@ -17,12 +17,12 @@ import (
 func main() {
 	time.Sleep(config.StartupWait)
 
-	idPtr := flag.String("id", "defaultID", "ID of elevator, overwrite using -id=<newId>")
+	selfIdPtr := flag.String("id", "defaultID", "ID of elevator, overwrite using -id=<newId>")
 	portPtr := flag.Int("port", config.HardwarePortNumber, "Port of the hardware server, overwrite using -port=<newPort>")
 	flag.Parse()
 
-	id := *idPtr
-	fmt.Println(id)
+	selfId := *selfIdPtr
+	fmt.Println(selfId)
 	port := *portPtr
 
 	hardwareDisconnectedC := make(chan bool, 1024)
@@ -50,7 +50,7 @@ func main() {
 	go lights.Lights(commonCallsToLightsC)
 
 	go network.Network(
-		id,
+		selfId,
 		networkRequestSelfDataC,
 		selfDataToNetworkC,
 		otherDataToSyncC,
@@ -62,7 +62,7 @@ func main() {
 
 	go elevio.PollButtons(hardWareCallToSyncC)
 	go elevsync.Sync(
-		id,
+		selfId,
 		hardWareCallToSyncC,
 		completedCallToSyncC,
 		selfStateToSyncC,
@@ -97,7 +97,7 @@ func main() {
 			allStates := append(
 				[]elevsync.OtherElevatorBool{
 					{
-						ID:           id,
+						ID:           selfId,
 						State:        state,
 						CabCallsBool: syncedVariables.LocalCabCalls,
 					},

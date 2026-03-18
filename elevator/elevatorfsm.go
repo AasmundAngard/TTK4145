@@ -55,7 +55,7 @@ func Elevator(
 				switch {
 				case hCalls[state.Floor][state.Direction] || cCalls[state.Floor]:
 					elevio.SetMotorDirection(elevio.MD_Stop)
-					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
+					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction, state.Floor, hCalls, cCalls):
@@ -63,7 +63,7 @@ func Elevator(
 				case hCalls[state.Floor][state.Direction.Opposite()]:
 					elevio.SetMotorDirection(elevio.MD_Stop)
 					state.Direction = state.Direction.Opposite()
-					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
+					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction.Opposite(), state.Floor, hCalls, cCalls):
@@ -90,14 +90,14 @@ func Elevator(
 				elevio.SetFloorIndicator(state.Floor)
 				openDoorC <- true
 				state.Behaviour = DoorOpen
-				orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
+				callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
 			}
 		case <-doorClosedC:
 			switch state.Behaviour {
 			case DoorOpen:
 				switch {
 				case hCalls[state.Floor][state.Direction] || cCalls[state.Floor]:
-					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
+					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction, state.Floor, hCalls, cCalls):
@@ -105,7 +105,7 @@ func Elevator(
 					state.Behaviour = Moving
 				case hCalls[state.Floor][state.Direction.Opposite()]:
 					state.Direction = state.Direction.Opposite()
-					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
+					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction.Opposite(), state.Floor, hCalls, cCalls):
@@ -128,19 +128,19 @@ func Elevator(
 				break
 			case DoorOpen:
 				if hCalls[state.Floor][state.Direction] || cCalls[state.Floor] {
-					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
+					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				}
 			case Idle:
 				switch {
 				case hCalls[state.Floor][state.Direction] || cCalls[state.Floor]:
-					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
+					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				case hCalls[state.Floor][state.Direction.Opposite()]:
 					state.Direction = state.Direction.Opposite()
-					orderDone(state, &hCalls, &cCalls, completedCallToSyncC)
+					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction, state.Floor, hCalls, cCalls):

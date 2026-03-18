@@ -12,7 +12,7 @@ type Calls struct {
 	CabCalls  CabCallsBool
 }
 
-func (calls *Calls) callDone(state ElevState, hCalls *HallCallsBool, cCalls *CabCallsBool, completedCallToSyncC chan<- elevio.CallEvent) {
+func callCompleted(state ElevState, hCalls *HallCallsBool, cCalls *CabCallsBool, completedCallToSyncC chan<- elevio.CallEvent) {
 	if cCalls[state.Floor] {
 		cCalls[state.Floor] = false
 		completedCallToSyncC <- state.ToCabCallEvent()

@@ -5,59 +5,58 @@ import (
 	"root/elevstate"
 )
 
-func Sync(id string,
+func Sync(selfId string,
 	hardwareCallToSyncC <-chan elevio.CallEvent,
 	completedCallToSyncC <-chan elevio.CallEvent,
 	selfStateToSyncC <-chan elevstate.ElevState,
-	syncedVariablesToMainC chan<- SyncedData,
-	otherDataToSyncC <-chan NetworkMsg,
-	otherCabCallsRequestC <-chan string,
-	otherCabCallsToNetworkC chan<- CabNetworkMsg,
-	selfCabCallsToSyncC <-chan []CabCalls,
-	networkRequestSelfDataC <-chan struct{},
-	selfDataToNetworkC chan<- NetworkMsg,
-	alivePeersC <-chan []string) {
+	syncedSystemStatusToMainC chan<- SyncedData, // syncedVariablesToMainC
+	peerStatusUpdateToSyncC <-chan NetworkMsg, // peerStatusUpdateToSyncC				otherDataToSyncC
+	peerRequestCabCallsToSyncC <-chan string, // peerRequestCabCallsToSyncC			otherCabCallsRequestC
+	peerCabCallsToNetworkC chan<- CabNetworkMsg, // peerCabCallsToNetworkC		otherCabCallsToNetworkC
+	selfCabCallsToSyncC <-chan []CabCalls, // selfCabCallsToSyncC				selfCabCallsToSyncC
+	selfStatusRequestToSyncC <-chan struct{}, // selfStatusRequestToSyncC		networkRequestSelfDataC
+	selfStatusToNetworkC chan<- NetworkMsg, // selfStatusToNetworkC				selfDataToNetworkC
+	alivePeersToSyncC <-chan []string) { // alivePeersToSyncC							alivePeersC
 
-	var localCalls Calls
-	var localState elevstate.ElevState
-	var OtherElevatorList OtherElevatorList
+	var selfCalls Calls
+	var selfState elevstate.ElevState
+	var otherElevatorList OtherElevatorList //OtherElevatorList
 
-	var confirmedCalls CommonCalls
-	var syncedData SyncedData
+	var commonCalls ConfirmedCalls
+	var syncedSystemStatus SystemStatus // syncedData
 
-	var NetworkMsgVersion int64 = 1
+	var selfNetworkMsgVersion int64 = 1
 
-	var cabCallsRestored = false
+	var hasRestoredCabCalls = false
 
 	for {
 		select {
-		case incomingHardwareCall := <-hardwareCallToSyncC:
-			localCalls.addCall(incomingHardwareCall)
+		case hardwareCall := <-hardwareCallToSyncC:
+			selfCalls.addCall(hardwareCall)
 
-		case incomingFinishedCall := <-completedCallToSyncC:
-			localCalls.removeCall(incomingFinishedCall)
+		case completedCall := <-completedCallToSyncC:
+			selfCalls.removeCall(completedCall)
 
-		case incomingLocalState := <-selfStateToSyncC:
-			localState = incomingLocalState
+		case newSelfState := <-selfStateToSyncC:
+			selfState = newSelfState
 
-		case <-networkRequestSelfDataC:
-			// Network ber sync om nyeste locale state
-			selfDataToNetworkC <- NetworkMsg{Version: NetworkMsgVersion, SenderID: id, Calls: localCalls, State: localState}
-			NetworkMsgVersion++
+		case <-selfStatusRequestToSyncC:
+			selfStatusToNetworkC <- NetworkMsg{Version: selfNetworkMsgVersion, SenderID: selfId, Calls: selfCalls, State: selfState}
+			selfNetworkMsgVersion++
 			continue
 
-		case incomingNetworkMsg := <-otherDataToSyncC:
+		case incomingNetworkMsg := <-peerStatusUpdateToSyncC:
 			// Generell network-melding
 
-			otherIsAlive, err := OtherElevatorList.getAlive(incomingNetworkMsg.SenderID)
+			otherIsAlive, err := otherElevatorList.getAlive(incomingNetworkMsg.SenderID)
 			switch {
 			case otherIsAlive && err == nil:
 				// Kjent ID, og heis i live
 				// 		Streng versjon-merge hall calls
 				// 		Oppdater lokal OtherElevator
 
-				localCalls.mergeHallCalls(incomingNetworkMsg.Calls)
-				OtherElevatorList.update(incomingNetworkMsg)
+				selfCalls.mergeHallCalls(incomingNetworkMsg.Calls)
+				otherElevatorList.update(incomingNetworkMsg)
 			case !otherIsAlive && err == nil:
 				// Kjent ID, ikke i live
 				// 	Anta at den bare reconnecta uten restart, fordi vi ikke fikk id først
@@ -66,17 +65,17 @@ func Sync(id string,
 				// 	Merge hall call forgiving
 
 				// Kun broadcast cabcalls ved mottatt ID
-				OtherElevatorList.setAlive(incomingNetworkMsg.SenderID, true)
-				OtherElevatorList.resetVersion(incomingNetworkMsg.SenderID)
-				OtherElevatorList.updateWithoutVersionCheck(incomingNetworkMsg)
-				OtherElevatorList.setHallCalls(incomingNetworkMsg.SenderID, incomingNetworkMsg.Calls.HallCalls)
-				localCalls.mergeHallCallsForgiving(&OtherElevatorList)
+				otherElevatorList.setAlive(incomingNetworkMsg.SenderID, true)
+				otherElevatorList.resetVersion(incomingNetworkMsg.SenderID)
+				otherElevatorList.updateWithoutVersionCheck(incomingNetworkMsg)
+				otherElevatorList.setHallCalls(incomingNetworkMsg.SenderID, incomingNetworkMsg.Calls.HallCalls)
+				selfCalls.mergeHallCallsForgiving(&otherElevatorList)
 			case err != nil:
 				// 	Ukjent ID, aldri sett før
 				//  	Lag lokal OtherElevator
 				// 		Marker som alive
 				// 		Merge hall call forgiving
-				OtherElevatorList = append(OtherElevatorList, OtherElevator{
+				otherElevatorList = append(otherElevatorList, OtherElevator{
 					ID:      incomingNetworkMsg.SenderID,
 					Version: 0,
 					Calls:   incomingNetworkMsg.Calls,
@@ -84,10 +83,10 @@ func Sync(id string,
 					Alive:   true,
 				},
 				)
-				localCalls.mergeHallCallsForgiving(&OtherElevatorList)
+				selfCalls.mergeHallCallsForgiving(&otherElevatorList)
 			}
 
-		case alivePeersList := <-alivePeersC:
+		case alivePeersList := <-alivePeersToSyncC:
 			// Oppdatering fra Network når ny peer oppdages eller fjernes
 			newPeers, lostPeers := OtherElevatorList.findNewAndLostPeers(alivePeersList)
 
@@ -99,8 +98,8 @@ func Sync(id string,
 					break
 				case !otherIsAlive && err == nil:
 					// Kjent elevator, og den er registrert som død
-					OtherElevatorList.setAlive(otherId, true)
-					OtherElevatorList.resetVersion(otherId)
+					otherElevatorList.setAlive(otherId, true)
+					otherElevatorList.resetVersion(otherId)
 
 				case err != nil:
 					// Ukjent elevator
@@ -109,11 +108,11 @@ func Sync(id string,
 				}
 			}
 			for _, otherId := range lostPeers {
-				otherIsAlive, err := OtherElevatorList.getAlive(otherId)
+				otherIsAlive, err := otherElevatorList.getAlive(otherId)
 				switch {
 				case otherIsAlive && err == nil:
 					// Oppdater lokalt alive -> død
-					OtherElevatorList.setAlive(otherId, false)
+					otherElevatorList.setAlive(otherId, false)
 				case !otherIsAlive && err == nil:
 					// Allerede registrert som død, ignorer melding
 					break
@@ -123,11 +122,11 @@ func Sync(id string,
 				}
 			}
 
-		case ID := <-otherCabCallsRequestC:
+		case peerId := <-peerRequestCabCallsToSyncC:
 			// ID-melding fra en heis som etterspør egne cab calls
-			peerIsAlive, err := OtherElevatorList.getAlive(ID) // Gir false selv om satt til alive
-			otherCabCalls := OtherElevatorList.getCabCallsfromID(ID)
-			otherCabCallsToNetworkC <- CabNetworkMsg{SenderID: id, RequesterID: ID, CabCalls: otherCabCalls}
+			peerIsAlive, err := otherElevatorList.getAlive(peerId) // Gir false selv om satt til alive
+			otherCabCalls := otherElevatorList.getCabCallsfromID(peerId)
+			peerCabCallsToNetworkC <- CabNetworkMsg{SenderID: selfId, RequesterID: peerId, CabCalls: otherCabCalls}
 			switch {
 			case peerIsAlive && err == nil:
 				// Registrert som i live, trenger ikke sende noe
@@ -135,8 +134,8 @@ func Sync(id string,
 			case !peerIsAlive && err == nil:
 				// Registrert som død, reset lokalt versjonstall for å godta nye versjoner
 
-				OtherElevatorList.setAlive(ID, true)
-				OtherElevatorList.resetVersion(ID)
+				otherElevatorList.setAlive(peerId, true)
+				otherElevatorList.resetVersion(peerId)
 
 			case err != nil:
 				// Aldri sett ID før, vi har ikke dens cab calls, ignorer request
@@ -145,16 +144,16 @@ func Sync(id string,
 
 		case incomingCabCallsList := <-selfCabCallsToSyncC:
 			// Mottar egne cab calls
-			if !cabCallsRestored {
-				localCalls.mergeCabCalls(incomingCabCallsList)
+			if !hasRestoredCabCalls {
+				selfCalls.mergeCabCalls(incomingCabCallsList)
 			}
-			cabCallsRestored = true
+			hasRestoredCabCalls = true
 
 		}
-		confirmedCalls = localCalls.decideCommonCalls(OtherElevatorList, localState)
+		commonCalls = selfCalls.decideCommonCalls(otherElevatorList, selfState)
 
-		syncedData.format(confirmedCalls, OtherElevatorList)
+		syncedSystemStatus.format(commonCalls, otherElevatorList)
 
-		syncedVariablesToMainC <- syncedData
+		syncedSystemStatusToMainC <- syncedSystemStatus
 	}
 }

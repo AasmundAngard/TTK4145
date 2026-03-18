@@ -56,7 +56,7 @@ func newCabCalls() CabCalls {
 
 type HallCallsBool [config.NumFloors][2]bool
 type CabCallsBool [config.NumFloors]bool
-type CommonCalls struct {
+type ConfirmedCalls struct { // CommonCalls
 	HallCalls HallCallsBool
 	CabCalls  CabCallsBool
 }

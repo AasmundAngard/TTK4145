@@ -37,8 +37,8 @@ type OtherElevatorBool struct {
 	CabCallsBool CabCallsBool
 }
 
-func (OtherElevatorList *OtherElevatorList) getAlive(ID string) (bool, error) {
-	for _, otherElevator := range *OtherElevatorList {
+func (otherElevatorList *OtherElevatorList) getAlive(ID string) (bool, error) {
+	for _, otherElevator := range *otherElevatorList {
 		if otherElevator.ID == ID && otherElevator.Alive {
 			return true, nil
 		} else if otherElevator.ID == ID && !otherElevator.Alive {
@@ -48,7 +48,7 @@ func (OtherElevatorList *OtherElevatorList) getAlive(ID string) (bool, error) {
 	return false, errors.New("ID not found")
 }
 
-func (OtherElevatorList *OtherElevatorList) setAlive(SenderID string, aliveStatus bool) {
+func (otherElevatorList *OtherElevatorList) setAlive(SenderID string, aliveStatus bool) {
 	for i, elevator := range *OtherElevatorList {
 		if elevator.ID == SenderID {
 			(*OtherElevatorList)[i].Alive = aliveStatus
@@ -143,88 +143,6 @@ func (self *Calls) mergeHallCallsForgiving(OtherElevatorList *OtherElevatorList)
 			}
 		}
 	}
-}
-
-// Blocking, to make sure the elevators have synchronized data before ruining everything
-func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(alivePeersList []string,
-	alivePeersC <-chan []string,
-	otherDataToSyncC <-chan NetworkMsg,
-	networkRequestSelfDataC <-chan struct{},
-	selfDataToNetworkC chan<- NetworkMsg,
-	NetworkMsgVersion int64, id string, localCallsPtr *Calls, localStatePtr *elevstate.ElevState, otherCabCallsRequestC <-chan string, otherCabCallsToNetworkC chan<- CabCalls) int64 {
-
-	var ReconnectRespondents []string
-	var incomingNetworkMsg NetworkMsg
-
-	DrainChannel(otherDataToSyncC, &incomingNetworkMsg)
-
-	print("Waiting for responses")
-	for len(ReconnectRespondents) < len(alivePeersList)-1 {
-		if (len(alivePeersList)) == 1 {
-			break
-		}
-
-		select {
-		//===========================
-		// Denne må stå først, for at heisen skal begynne å sende ut det den har, før den mottar oppdatert state.
-		// Hvorfor skal vi egentlig måtte ha de andre?
-		case ID := <-otherCabCallsRequestC:
-			// Heis sender ID og spør om sine cab calls
-			//print("Request calls")
-			fmt.Println("request calls 2:")
-			// otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromID(ID)
-			for _, elev := range *OtherElevatorList {
-				for _, floor := range elev.Calls.CabCalls {
-					fmt.Println(floor.NeedService)
-				}
-			}
-			// Dette gir false for alle når requesten skjer
-
-			cabBalls := OtherElevatorList.getCabCallsfromID(ID)
-			for _, floor := range cabBalls {
-				fmt.Println(floor.NeedService)
-			}
-			otherCabCallsToNetworkC <- cabBalls
-			continue
-
-		case incomingNetworkMsg := <-otherDataToSyncC:
-			// Mottar nettverk-melding
-			// Kan motta melding fra oppstartende heis med feil cab calls
-			if !slices.Contains(ReconnectRespondents, incomingNetworkMsg.SenderID) {
-				ReconnectRespondents = append(ReconnectRespondents, incomingNetworkMsg.SenderID)
-				fmt.Println("before without version check")
-				for _, elev := range *OtherElevatorList {
-					for _, floor := range elev.Calls.CabCalls {
-						fmt.Println(floor.NeedService)
-					}
-				}
-				fmt.Println(incomingNetworkMsg)
-				// Oppstartende heis sender sin egen state før den har mottatt sine cab calls
-				(*OtherElevatorList).updateWithoutVersionCheck(incomingNetworkMsg)
-				fmt.Println("after without version check")
-				for _, elev := range *OtherElevatorList {
-					for _, floor := range elev.Calls.CabCalls {
-						fmt.Println(floor.NeedService)
-					}
-				}
-			}
-
-		case <-networkRequestSelfDataC:
-			// Network spør hele tiden om lokal state for å sende den
-			selfDataToNetworkC <- NetworkMsg{Version: NetworkMsgVersion, SenderID: id, Calls: *localCallsPtr, State: *localStatePtr}
-			NetworkMsgVersion++
-
-		case alivePeersList := <-alivePeersC:
-			// Her mottas oppdatering om ny peer
-			// Burde man bare sende cab calls med en gang kanskje?
-			// Samme kanal som elevsync.go
-			OtherElevatorList.updateAliveStatus(alivePeersList)
-
-		}
-	}
-
-	print("Received responses from all alive elevators, continuing")
-	return NetworkMsgVersion
 }
 
 func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID string) CabCalls {
@@ -355,15 +273,4 @@ func (thisSyncedData *SyncedData) Equals(otherSyncedData SyncedData) bool {
 		return false
 	}
 	return true
-}
-
-func DrainChannel[T any](variableC <-chan T, variable *T) {
-drainChannel:
-	for {
-		select {
-		case *variable = <-variableC:
-		default:
-			break drainChannel
-		}
-	}
 }

@@ -28,18 +28,13 @@ func initElevator(id string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 		fmt.Println("initElevatorloop")
 		select {
 		case msg := <-cabCallsRxC:
-			fmt.Println("received")
-			fmt.Println(msg)
 			if msg.RequesterID == id {
 				if !slices.Contains(collectedIDs, msg.SenderID) {
-					fmt.Println("append msg")
 					collectedCalls = append(collectedCalls, msg.CabCalls)
-					fmt.Println("collectedCalls")
-					fmt.Println(collectedCalls)
 					collectedIDs = append(collectedIDs, msg.SenderID)
 				}
 			}
-			
+
 		case <-timeout:
 			fmt.Println("init timeout")
 			selfCabCallsToSyncC <- collectedCalls
@@ -125,7 +120,6 @@ func Network(id string,
 			requesterID := <-cabRequestRxC
 			// Received ID asking for cab calls
 			if requesterID != id {
-				fmt.Println("not local id")
 				otherCabCallsRequestC <- requesterID
 			}
 		}
@@ -134,10 +128,11 @@ func Network(id string,
 		for {
 			select {
 			case cabCallMsg := <-otherCabCallsToNetworkC:
+				fmt.Println("cab calls to network")
 				// Denne metoden "låser" cab calls som skal sendes for en stund.
 				// Om en heis connecter, krasjer og reconnecter innen kort tid,
-				fmt.Println("calls to send:")
-				fmt.Println(cabCallMsg)
+				// fmt.Println("calls to send:")
+				// fmt.Println(cabCalls)
 				// var cabMsg elevsync.CabNetworkMsg
 				// cabMsg.CabCalls = cabCalls
 				// cabMsg.SenderID = id
@@ -166,6 +161,7 @@ func Network(id string,
 		// create a NetworkRecieveMsg and add the info from NetworkTransmitMsg into it, plus sender id
 		// Send on recvFromNetwork channel
 		case stateUpdate := <-stateRxC:
+			// fmt.Println("stateupdate:", stateUpdate.SenderID)
 			if stateUpdate.SenderID != id {
 				otherDataToSyncC <- stateUpdate
 			}

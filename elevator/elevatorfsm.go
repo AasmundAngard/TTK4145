@@ -69,8 +69,6 @@ func Elevator(
 				case orderInDirection(state.Direction.Opposite(), state.Floor, hCalls, cCalls):
 					state.Direction = state.Direction.Opposite()
 					elevio.SetMotorDirection(state.Direction.ToMD())
-					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
-
 					state.Behaviour = Moving
 				default:
 					elevio.SetMotorDirection(elevio.MD_Stop)
@@ -104,7 +102,6 @@ func Elevator(
 					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction, state.Floor, hCalls, cCalls):
 					elevio.SetMotorDirection(state.Direction.ToMD())
-					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 					state.Behaviour = Moving
 				case hCalls[state.Floor][state.Direction.Opposite()]:
 					state.Direction = state.Direction.Opposite()
@@ -114,7 +111,6 @@ func Elevator(
 				case orderInDirection(state.Direction.Opposite(), state.Floor, hCalls, cCalls):
 					state.Direction = state.Direction.Opposite()
 					elevio.SetMotorDirection(state.Direction.ToMD())
-					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 					state.Behaviour = Moving
 				default:
 					state.Behaviour = Idle
@@ -149,12 +145,10 @@ func Elevator(
 					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction, state.Floor, hCalls, cCalls):
 					elevio.SetMotorDirection(state.Direction.ToMD())
-					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 					state.Behaviour = Moving
 				case orderInDirection(state.Direction.Opposite(), state.Floor, hCalls, cCalls):
 					state.Direction = state.Direction.Opposite()
 					elevio.SetMotorDirection(state.Direction.ToMD())
-					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 					state.Behaviour = Moving
 				}
 			default:

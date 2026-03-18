@@ -28,14 +28,9 @@ func initElevator(id string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 		fmt.Println("initElevatorloop")
 		select {
 		case msg := <-cabCallsRxC:
-			fmt.Println("received")
-			fmt.Println(msg)
 			if msg.RequesterID == id {
 				if !slices.Contains(collectedIDs, msg.SenderID) {
-					fmt.Println("append msg")
 					collectedCalls = append(collectedCalls, msg.CabCalls)
-					fmt.Println("collectedCalls")
-					fmt.Println(collectedCalls)
 					collectedIDs = append(collectedIDs, msg.SenderID)
 				}
 			}
@@ -58,8 +53,6 @@ func broadcastState(stateTxC chan<- elevsync.NetworkMsg, requestStatusC chan<- s
 		requestStatusC <- struct{}{}
 
 		status := <-selfDataToNetworkC
-		// fmt.Println("broadcasting")
-		// fmt.Println(status.Calls.HallCalls)
 
 		stateTxC <- status
 		time.Sleep(config.BroadcastTime)
@@ -127,13 +120,11 @@ func Network(id string,
 			requesterID := <-cabRequestRxC
 			// Received ID asking for cab calls
 			if requesterID != id {
-				fmt.Println("not local id")
 				otherCabCallsRequestC <- requesterID
 			}
 		}
 	}()
 	go func() {
-		i := 0
 		for {
 			select {
 			case cabCallMsg := <-otherCabCallsToNetworkC:
@@ -145,8 +136,7 @@ func Network(id string,
 				// var cabMsg elevsync.CabNetworkMsg
 				// cabMsg.CabCalls = cabCalls
 				// cabMsg.SenderID = id
-				go broadCastCabCalls(cabCallMsg, cabCallsTxC, i)
-				i++
+				go broadCastCabCalls(cabCallMsg, cabCallsTxC)
 			default:
 				break
 
@@ -179,7 +169,7 @@ func Network(id string,
 	}
 }
 
-func broadCastCabCalls(cabMsg elevsync.CabNetworkMsg, cabCallsTxC chan<- elevsync.CabNetworkMsg, i int) {
+func broadCastCabCalls(cabMsg elevsync.CabNetworkMsg, cabCallsTxC chan<- elevsync.CabNetworkMsg) {
 	for i := 0; i < config.CabCallRetries; i++ {
 		cabCallsTxC <- cabMsg
 		time.Sleep(config.InitRetryInterval)

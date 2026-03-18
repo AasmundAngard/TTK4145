@@ -78,7 +78,15 @@ func Sync(id string,
 		case alivePeersList := <-alivePeersC:
 			OtherElevatorList.updateAliveStatus(alivePeersList)
 
+			if slices.Contains(prevAlivePeers, id) == false {
+				prevAlivePeers = append(prevAlivePeers, id)
+			}
+			if slices.Contains(alivePeersList, id) == false {
+				prevAlivePeers = append(prevAlivePeers, id)
+			}
+
 			if OtherElevatorList.detectReconnect(prevAlivePeers) == true {
+				print("Reconnect detected, requesting hall calls from other elevators")
 
 				//Handles the edge case where alivePeers case get chosen before updating from each other elevators networkmsg
 				//NetworkMsgVersion = OtherElevatorList.updateSelfInOthersAndOthersInSelf(alivePeersList, alivePeersC, otherDataToSyncC, networkRequestSelfDataC, selfDataToNetworkC, NetworkMsgVersion, id, &localCalls, &localState)

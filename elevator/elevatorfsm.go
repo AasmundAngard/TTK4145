@@ -12,12 +12,14 @@ import (
 //
 // It implements a finite state machine that receives assigned calls,
 // controls the elevator movement and door, and interacts with hardware.
+// Elevator practically runs as a single-elevator algorithm.
 //
 // Input:
-// 		selfCallsToElevatorC:  Receives calls to be serviced by the elevator
+// 	 <- selfCallsToElevatorC	: Receives calls to be serviced by the elevator
+//
 // Output:
-// 		completedCallToSyncC:  Reports its serviced calls to sync.
-// 		selfStateToMainC:      Passes its local state to main.
+// 	 -> completedCallToSyncC	: Reports its serviced calls to sync.
+// 	 -> selfStateToMainC		: Passes its local state to main.
 //
 // Responsible for all hardware IO except button lights, and delegates
 // door timing and obstruction handling to the Door routine.

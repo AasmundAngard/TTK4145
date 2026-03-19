@@ -13,6 +13,8 @@ import (
 // It implements a finite state machine that receives assigned calls,
 // controls the elevator movement and door, and interacts with hardware.
 //
+// Input:
+// 		selfCallsToElevatorC:  Receives calls to be serviced by the elevator
 // Output:
 // 		completedCallToSyncC:  Reports its serviced calls to sync.
 // 		selfStateToMainC:      Passes its local state to main.

@@ -8,7 +8,7 @@ import (
 
 // Door controls the elevator door.
 //
-// It listens for door open command on openDoorC, monitors obstructions,
+// It listens for "open door" command, monitors obstructions,
 // and controls the door lamp and timer internally.
 //
 // Input:

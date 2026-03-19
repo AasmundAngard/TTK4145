@@ -1,5 +1,29 @@
 package network
 
+// Package network manages all network communication in the distributed
+// elevator system.
+//
+// It handles peer discovery, status broadcasting, and cab‑call exchange.
+// The module forwards incoming network messages to the sync layer and
+// periodically requests local elevator status to broadcast.
+//
+// Responsibilities:
+//   - Discover peers and report the list of alive peers
+//   - Broadcast local elevator status and relay peer status updates
+//   - Handle cab‑call requests from peers
+//   - Perform startup initialization by collecting cab calls from all peers
+//
+// Inputs:
+//   <- selfStatusToNetworkC        : local elevator status to broadcast
+//   <- peerCabCallsToNetworkC      : cab-call responses from sync to broadcast
+//
+// Outputs:
+//   -> selfStatusRequestToSyncC    : request for local status (periodic)
+//   -> peerStatusUpdateToSyncC     : incoming peer status updates
+//   -> alivePeersToSyncC           : current list of alive peers
+//   -> peerRequestCabCallsToSyncC  : peer requesting cab-call data
+//   -> selfCabCallsToSyncC         : collected cab calls during initialization
+
 import (
 	"fmt"
 	"root/config"

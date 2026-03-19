@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func initElevator(id string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
+func initElevator(selfId string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 	cabRequestTxC := make(chan string)
 	cabCallsRxC := make(chan elevsync.CabNetworkMsg)
 
@@ -28,10 +28,10 @@ func initElevator(id string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 		fmt.Println("initElevatorloop")
 		select {
 		case msg := <-cabCallsRxC:
-			if msg.RequesterID == id {
-				if !slices.Contains(collectedIDs, msg.SenderID) {
+			if msg.RequesterId == selfId {
+				if !slices.Contains(collectedIDs, msg.SenderId) {
 					collectedCalls = append(collectedCalls, msg.CabCalls)
-					collectedIDs = append(collectedIDs, msg.SenderID)
+					collectedIDs = append(collectedIDs, msg.SenderId)
 				}
 			}
 
@@ -41,7 +41,7 @@ func initElevator(id string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 			return
 		default:
 			fmt.Println("init default")
-			cabRequestTxC <- id
+			cabRequestTxC <- selfId
 			time.Sleep(config.InitRetryInterval)
 		}
 	}
@@ -61,7 +61,7 @@ func broadcastState(stateTxC chan<- elevsync.NetworkMsg, requestStatusC chan<- s
 
 // func handleCabRequest(cabRequestRx <- chan string, )
 
-func Network(id string,
+func Network(selfId string,
 	networkRequestSelfDataC chan<- struct{},
 	selfDataToNetworkC <-chan elevsync.NetworkMsg,
 	otherDataToSyncC chan<- elevsync.NetworkMsg,
@@ -76,15 +76,15 @@ func Network(id string,
 	// flag.StringVar(&id, "id", "", "Elevator ID (for running multiple instances on one machine)")
 	// flag.Parse()
 
-	if id == "" {
+	if selfId == "" {
 		// default behavior for normal single-process use
-		id = "elevator_1" // or derive from hostname, etc.
+		selfId = "elevator_1" // or derive from hostname, etc.
 	}
 
 	// 2. Make channels for peerupdate and setup transmit/recv updates
 	peerUpdateRxC := make(chan peers.PeerUpdate)
 	peerTxEnableC := make(chan bool)
-	go peers.Transmitter(config.PeerUpdatePort, id, peerTxEnableC)
+	go peers.Transmitter(config.PeerUpdatePort, selfId, peerTxEnableC)
 	go peers.Receiver(config.PeerUpdatePort, peerUpdateRxC)
 
 	// 3. Make channels for sending and recieving status (NetworkTransmitMsg) and setup transmit/recv status
@@ -104,7 +104,7 @@ func Network(id string,
 	time.Sleep(time.Second)
 	// Initialize (ask for cab calls)
 	fmt.Println("init network start")
-	initElevator(id, selfCabCallsToSyncC)
+	initElevator(selfId, selfCabCallsToSyncC)
 	fmt.Println("init network end")
 
 	go broadcastState(stateTxC, networkRequestSelfDataC, selfDataToNetworkC)
@@ -117,10 +117,10 @@ func Network(id string,
 
 	go func() {
 		for {
-			requesterID := <-cabRequestRxC
+			requesterId := <-cabRequestRxC
 			// Received ID asking for cab calls
-			if requesterID != id {
-				otherCabCallsRequestC <- requesterID
+			if requesterId != selfId {
+				otherCabCallsRequestC <- requesterId
 			}
 		}
 	}()
@@ -135,7 +135,7 @@ func Network(id string,
 				// fmt.Println(cabCalls)
 				// var cabMsg elevsync.CabNetworkMsg
 				// cabMsg.CabCalls = cabCalls
-				// cabMsg.SenderID = id
+				// cabMsg.SenderId = selfId
 				go broadCastCabCalls(cabCallMsg, cabCallsTxC)
 			default:
 				break
@@ -161,8 +161,8 @@ func Network(id string,
 		// create a NetworkRecieveMsg and add the info from NetworkTransmitMsg into it, plus sender id
 		// Send on recvFromNetwork channel
 		case stateUpdate := <-stateRxC:
-			// fmt.Println("stateupdate:", stateUpdate.SenderID)
-			if stateUpdate.SenderID != id {
+			// fmt.Println("stateupdate:", stateUpdate.SenderId)
+			if stateUpdate.SenderId != selfId {
 				otherDataToSyncC <- stateUpdate
 			}
 		}

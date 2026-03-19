@@ -1,107 +1,163 @@
 package elevsync
 
+// Package description:
+//
+
 import (
-	"fmt"
 	"root/elevio"
 	"root/elevstate"
-	"slices"
 )
 
-func SyncOld(id string,
+func Sync(selfId string,
 	hardwareCallToSyncC <-chan elevio.CallEvent,
 	completedCallToSyncC <-chan elevio.CallEvent,
 	selfStateToSyncC <-chan elevstate.ElevState,
-	syncedVariablesToMainC chan<- SyncedData,
-	otherDataToSyncC <-chan NetworkMsg,
-	otherCabCallsRequestC <-chan string,
-	otherCabCallsToNetworkC chan<- CabCalls,
-	selfCabCallsToSyncC <-chan []CabCalls,
-	networkRequestSelfDataC <-chan struct{},
-	selfDataToNetworkC chan<- NetworkMsg,
-	alivePeersC <-chan []string) {
+	syncedSystemStatusToMainC chan<- SystemStatus, // syncedVariablesToMainC
+	peerStatusUpdateToSyncC <-chan NetworkMsg, // peerStatusUpdateToSyncC				otherDataToSyncC
+	peerRequestCabCallsToSyncC <-chan string, // peerRequestCabCallsToSyncC			otherCabCallsRequestC
+	peerCabCallsToNetworkC chan<- CabNetworkMsg, // peerCabCallsToNetworkC		otherCabCallsToNetworkC
+	selfCabCallsToSyncC <-chan []CabCalls, // selfCabCallsToSyncC				selfCabCallsToSyncC
+	selfStatusRequestToSyncC <-chan struct{}, // selfStatusRequestToSyncC		networkRequestSelfDataC
+	selfStatusToNetworkC chan<- NetworkMsg, // selfStatusToNetworkC				selfDataToNetworkC
+	alivePeersToSyncC <-chan []string) { // alivePeersToSyncC							alivePeersC
 
-	var localCalls Calls
-	var localState elevstate.ElevState
-	var OtherElevatorList OtherElevatorList
+	// local data
+	var selfCalls Calls
+	var selfState elevstate.ElevState
+	var selfNetworkMsgVersion int64 = 1   // networkMsgVersion
+	var hasRestoredCabCalls = false       // restoredCabCalls
+	var peerElevatorList peerElevatorList //otherElevatorList
 
-	var confirmedCalls CommonCalls
-	var syncedData SyncedData
+	// exported data
+	var commonCalls ConfirmedCalls // confirmedCalls commonCalls
+	var syncedSystemStatus SystemStatus
 
-	var NetworkMsgVersion int64 = 0
-
-	var prevAlivePeers []string
-
-	var cabCallsRestored = false
 	for {
 		select {
-		case incomingHardwareCall := <-hardwareCallToSyncC:
-			localCalls.addCall(incomingHardwareCall)
+		case hardwareCall := <-hardwareCallToSyncC:
+			selfCalls.addCall(hardwareCall)
 
-		case incomingFinishedCall := <-completedCallToSyncC:
-			localCalls.removeCall(incomingFinishedCall)
+		case completedCall := <-completedCallToSyncC:
+			selfCalls.removeCall(completedCall)
 
-		case incomingLocalState := <-selfStateToSyncC:
-			localState = incomingLocalState
+		case newSelfState := <-selfStateToSyncC:
+			selfState = newSelfState
 
-		case incomingNetworkMsg := <-otherDataToSyncC:
-			OtherElevatorList.update(incomingNetworkMsg)
-			localCalls.mergeHallCalls(incomingNetworkMsg.Calls)
-
-		case <-networkRequestSelfDataC:
-			selfDataToNetworkC <- NetworkMsg{Version: NetworkMsgVersion, SenderID: id, Calls: localCalls, State: localState}
-			NetworkMsgVersion++
+		case <-selfStatusRequestToSyncC:
+			outgoingNetworkMsg := NetworkMsg{Version: selfNetworkMsgVersion, SenderId: selfId, Calls: selfCalls, State: selfState}
+			selfStatusToNetworkC <- outgoingNetworkMsg
+			selfNetworkMsgVersion++
 			continue
 
-		case alivePeersList := <-alivePeersC:
-			OtherElevatorList.updateAliveStatus(alivePeersList)
+		case incomingNetworkMsg := <-peerStatusUpdateToSyncC:
+			// Generell network-melding
 
-			if OtherElevatorList.detectReconnect(prevAlivePeers) == true {
-				if cabCallsRestored == false {
-					incomingCabCallsList := <-selfCabCallsToSyncC
-					localCalls.mergeCabCalls(incomingCabCallsList)
-					cabCallsRestored = true
+			otherIsAlive, err := peerElevatorList.getAlive(incomingNetworkMsg.SenderId)
+			switch {
+			case otherIsAlive && err == nil:
+				// Kjent ID, og heis i live
+				// 		Streng versjon-merge hall calls
+				// 		Oppdater lokal OtherElevator
+
+				selfCalls.mergeHallCalls(incomingNetworkMsg.Calls)
+				peerElevatorList.update(incomingNetworkMsg)
+			case !otherIsAlive && err == nil:
+				// Kjent ID, ikke i live
+				// 	Anta at den bare reconnecta uten restart, fordi vi ikke fikk id først
+				// 	Oppdater lokal other, reset
+				// 	Marker som alive
+				// 	Merge hall call forgiving
+
+				// Kun broadcast cabcalls ved mottatt ID
+				peerElevatorList.setAlive(incomingNetworkMsg.SenderId, true)
+				peerElevatorList.resetVersion(incomingNetworkMsg.SenderId)
+				peerElevatorList.updateWithoutVersionCheck(incomingNetworkMsg)
+				peerElevatorList.setHallCalls(incomingNetworkMsg.SenderId, incomingNetworkMsg.Calls.HallCalls)
+				selfCalls.mergeHallCallsForgiving(&peerElevatorList)
+			case err != nil:
+				// 	Ukjent ID, aldri sett før
+				//  	Lag lokal OtherElevator
+				// 		Marker som alive
+				// 		Merge hall call forgiving
+				peerElevatorList = append(peerElevatorList, peerElevator{
+					Id:      incomingNetworkMsg.SenderId,
+					Version: 0,
+					Calls:   incomingNetworkMsg.Calls,
+					State:   incomingNetworkMsg.State,
+					Alive:   true,
+				},
+				)
+				selfCalls.mergeHallCallsForgiving(&peerElevatorList)
+			}
+
+		case alivePeersList := <-alivePeersToSyncC:
+			// Oppdatering fra Network når ny peer oppdages eller fjernes
+			newPeers, lostPeers := peerElevatorList.findNewAndLostPeers(alivePeersList)
+
+			for _, otherId := range newPeers {
+				otherIsAlive, err := peerElevatorList.getAlive(otherId)
+				switch {
+				case otherIsAlive && err == nil:
+					// Kjent elevator, men den er allerede registrert som alive
+					// Ingen handling nødvendig
+				case !otherIsAlive && err == nil:
+					// Kjent elevator, og den er registrert som død
+					peerElevatorList.setAlive(otherId, true)
+					peerElevatorList.resetVersion(otherId)
+
+				case err != nil:
+					// Ukjent elevator
+					// Ignorer, vent til networkMsg med status
+					// Ingen handling nødvendig
 				}
-
-				// =====================================
-				// Denne funksjonen overskriver cab calls
-				NetworkMsgVersion = OtherElevatorList.updateSelfInOthersAndOthersInSelf(alivePeersList, alivePeersC, otherDataToSyncC, networkRequestSelfDataC, selfDataToNetworkC, NetworkMsgVersion, id, &localCalls, &localState, otherCabCallsRequestC, otherCabCallsToNetworkC)
-
-				localCalls.mergeHallCallsForgiving(&OtherElevatorList)
-				//print("Merging calls forgivingly")
 			}
-
-			prevAlivePeers = slices.Clone(alivePeersList)
-
-			//Edge case: Another elevator is requesting its cab calls from this elevator
-		case ID := <-otherCabCallsRequestC:
-			// En heis spør om sine cab calls
-			//print("Request calls")
-			fmt.Println("request calls:")
-			// otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromID(ID)
-			for _, elev := range OtherElevatorList {
-				for _, floor := range elev.Calls.CabCalls {
-					fmt.Println(floor.NeedService)
+			for _, otherId := range lostPeers {
+				otherIsAlive, err := peerElevatorList.getAlive(otherId)
+				switch {
+				case otherIsAlive && err == nil:
+					// Oppdater lokalt alive -> død
+					peerElevatorList.setAlive(otherId, false)
+				case !otherIsAlive && err == nil:
+					// Allerede registrert som død, ignorer melding
+					// Ingen handling nødvendig
+				case err != nil:
+					// Aldri sett elevator før, ignorer melding
+					// Ingen handling nødvendig
 				}
 			}
-			// Dette gir false for alle når requesten skjer
 
-			cabBalls := OtherElevatorList.getCabCallsfromID(ID)
-			for _, floor := range cabBalls {
-				fmt.Println(floor.NeedService)
+		case peerId := <-peerRequestCabCallsToSyncC:
+			// ID-melding fra en heis som etterspør egne cab calls
+			peerIsAlive, err := peerElevatorList.getAlive(peerId) // Gir false selv om satt til alive
+			otherCabCalls := peerElevatorList.getCabCallsFromId(peerId)
+			peerCabCallsToNetworkC <- CabNetworkMsg{SenderId: selfId, RequesterId: peerId, CabCalls: otherCabCalls}
+			switch {
+			case peerIsAlive && err == nil:
+				// Registrert som i live, trenger ikke sende noe
+				break
+			case !peerIsAlive && err == nil:
+				// Registrert som død, reset lokalt versjonstall for å godta nye versjoner
+
+				peerElevatorList.setAlive(peerId, true)
+				peerElevatorList.resetVersion(peerId)
+
+			case err != nil:
+				// Aldri sett ID før, vi har ikke dens cab calls, ignorer request
+				break
 			}
-			otherCabCallsToNetworkC <- cabBalls
-			continue
+
+		case incomingCabCallsList := <-selfCabCallsToSyncC:
+			// Mottar egne cab calls
+			if !hasRestoredCabCalls {
+				selfCalls.mergeCabCalls(incomingCabCallsList)
+			}
+			hasRestoredCabCalls = true
+
 		}
-		// for i := range OtherElevatorList {
-		// 	fmt.Println(i)
-		// 	for _, floor := range OtherElevatorList[i].Calls.CabCalls {
-		// 		fmt.Println(floor)
-		// 	}
-		// }
-		confirmedCalls = localCalls.decideCommonCalls(OtherElevatorList, localState)
+		commonCalls = selfCalls.decideCommonCalls(peerElevatorList, selfState)
 
-		syncedData.format(confirmedCalls, OtherElevatorList)
+		syncedSystemStatus.format(commonCalls, peerElevatorList)
 
-		syncedVariablesToMainC <- syncedData
+		syncedSystemStatusToMainC <- syncedSystemStatus
 	}
 }

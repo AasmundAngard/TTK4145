@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-type Call struct {
+type call struct {
 	NeedService bool
 	Version     int64
 }
@@ -17,15 +17,15 @@ const (
 	UnservicedCall      = true
 )
 
-type HallCalls [config.NumFloors][2]Call
-type CabCalls [config.NumFloors]Call
+type hallCalls [config.NumFloors][2]call
+type CabCalls [config.NumFloors]call
 type Calls struct {
-	HallCalls HallCalls
+	HallCalls hallCalls
 	CabCalls  CabCalls
 }
 
-func (c HallCalls) toBool() HallCallsBool {
-	var b HallCallsBool
+func (c hallCalls) confirm() ConfirmedHallCalls {
+	var b ConfirmedHallCalls
 
 	for i, e := range c {
 		b[i][0] = e[0].NeedService
@@ -35,8 +35,8 @@ func (c HallCalls) toBool() HallCallsBool {
 	return b
 }
 
-func (c CabCalls) toBool() CabCallsBool {
-	var b CabCallsBool
+func (c CabCalls) confirm() ConfirmedCabCalls {
+	var b ConfirmedCabCalls
 
 	for i, e := range c {
 		b[i] = e.NeedService
@@ -54,14 +54,14 @@ func newCabCalls() CabCalls {
 	return cabCalls
 }
 
-type HallCallsBool [config.NumFloors][2]bool
-type CabCallsBool [config.NumFloors]bool
-type ConfirmedCalls struct { // CommonCalls
-	HallCalls HallCallsBool
-	CabCalls  CabCallsBool
+type ConfirmedHallCalls [config.NumFloors][2]bool
+type ConfirmedCabCalls [config.NumFloors]bool
+type ConfirmedCalls struct {
+	HallCalls ConfirmedHallCalls
+	CabCalls  ConfirmedCabCalls
 }
 
-func (h HallCallsBool) HasCalls() bool {
+func (h ConfirmedHallCalls) HasCalls() bool {
 	for _, floor := range h {
 		if floor[0] == true || floor[1] == true {
 			return true
@@ -69,7 +69,7 @@ func (h HallCallsBool) HasCalls() bool {
 	}
 	return false
 }
-func (h CabCallsBool) HasCalls() bool {
+func (h ConfirmedCabCalls) HasCalls() bool {
 	for _, floor := range h {
 		if floor == true {
 			return true
@@ -88,10 +88,10 @@ func (self *Calls) mergeHallCalls(incoming Calls) {
 	}
 }
 
-func (self *Calls) mergeCabCalls(incomingCabCallsLists []CabCalls) {
+func (self *Calls) mergeCabCalls(cabCallsLists []CabCalls) {
 	mergedCabCalls := newCabCalls()
 
-	for _, cabCalls := range incomingCabCallsLists {
+	for _, cabCalls := range cabCallsLists {
 		for floor := 0; floor < config.NumFloors; floor++ {
 			if cabCalls[floor].Version > mergedCabCalls[floor].Version {
 				mergedCabCalls[floor] = cabCalls[floor]
@@ -106,38 +106,37 @@ func (self *Calls) mergeCabCalls(incomingCabCallsLists []CabCalls) {
 	(*self).CabCalls = mergedCabCalls
 }
 
-func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList, localState elevstate.ElevState) CommonCalls {
-	var confirmedCalls CommonCalls
-	confirmedCalls.HallCalls = self.HallCalls.toBool()
-	confirmedCalls.CabCalls = self.CabCalls.toBool()
+func (self Calls) decideCommonCalls(peerElevators peerElevatorList, selfState elevstate.ElevState) ConfirmedCalls {
+	var commonCalls ConfirmedCalls
+	commonCalls.HallCalls = self.HallCalls.confirm()
+	commonCalls.CabCalls = self.CabCalls.confirm()
 
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for btn := 0; btn < 2; btn++ {
-			if self.HallCalls[floor][btn].NeedService == false || localState.MotorStop == true || localState.DoorObstructed == true {
+			if !self.HallCalls[floor][btn].NeedService || selfState.MotorStop || selfState.DoorObstructed {
 				continue
 			}
 
 			confirmed := true
-			for _, otherElevator := range otherElevatorList {
-				if otherElevator.Alive == false || otherElevator.State.MotorStop == true || otherElevator.State.DoorObstructed == true {
+			for _, peerElevator := range peerElevators {
+				if !peerElevator.Alive || peerElevator.State.MotorStop || peerElevator.State.DoorObstructed {
 					continue
 				}
 
-				if otherElevator.Calls.HallCalls[floor][btn].NeedService == false || otherElevator.Calls.HallCalls[floor][btn].Version != self.HallCalls[floor][btn].Version {
-					// If the other elevator does not have the same call or has a different version, we do not confirm it
+				if !peerElevator.Calls.HallCalls[floor][btn].NeedService || peerElevator.Calls.HallCalls[floor][btn].Version != self.HallCalls[floor][btn].Version {
 					confirmed = false
-					confirmedCalls.HallCalls[floor][btn] = false
+					commonCalls.HallCalls[floor][btn] = false
 					break
 				}
 			}
 
 			if confirmed {
-				confirmedCalls.HallCalls[floor][btn] = true
+				commonCalls.HallCalls[floor][btn] = true
 			}
 		}
 	}
 
-	return confirmedCalls
+	return commonCalls
 }
 
 func (self *Calls) addCall(incoming elevio.CallEvent) {

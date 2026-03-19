@@ -17,18 +17,18 @@ import (
 
 // JSON input and output structure
 type assignerState struct {
-	Behaviour   string                 `json:"behaviour"`
-	Floor       int                    `json:"floor"`
-	Direction   string                 `json:"direction"`
-	CabRequests [config.NumFloors]bool `json:"cabRequests"`
+	Behaviour         string                 `json:"behaviour"`
+	Floor             int                    `json:"floor"`
+	Direction         string                 `json:"direction"`
+	ConfirmedCabCalls [config.NumFloors]bool `json:"cabRequests"`
 }
 
 type assignerInput struct {
-	HallRequests [config.NumFloors][2]bool `json:"hallRequests"`
-	States       map[string]assignerState  `json:"states"`
+	ConfirmedHallCalls [config.NumFloors][2]bool `json:"hallRequests"`
+	States             map[string]assignerState  `json:"states"`
 }
 
-func requestsAbove(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
+func requestsAbove(hallCalls elevsync.ConfirmedHallCalls, cabCalls elevsync.ConfirmedCabCalls, currentFloor int) bool {
 	for f := currentFloor + 1; f < config.NumFloors; f++ {
 		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
 			return true
@@ -37,7 +37,7 @@ func requestsAbove(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsB
 	return false
 }
 
-func requestsBelow(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
+func requestsBelow(hallCalls elevsync.ConfirmedHallCalls, cabCalls elevsync.ConfirmedCabCalls, currentFloor int) bool {
 	for f := 0; f < currentFloor; f++ {
 		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
 			return true
@@ -46,14 +46,14 @@ func requestsBelow(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsB
 	return false
 }
 
-func requestsHere(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
+func requestsHere(hallCalls elevsync.ConfirmedHallCalls, cabCalls elevsync.ConfirmedCabCalls, currentFloor int) bool {
 	if hallCalls[currentFloor][0] || hallCalls[currentFloor][1] || cabCalls[currentFloor] {
 		return true
 	}
 	return false
 }
 
-func cabAbove(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
+func cabAbove(cabCalls elevsync.ConfirmedCabCalls, currentFloor int) bool {
 	for f := currentFloor + 1; f < config.NumFloors; f++ {
 		if cabCalls[f] {
 			return true
@@ -62,7 +62,7 @@ func cabAbove(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	return false
 }
 
-func cabBelow(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
+func cabBelow(cabCalls elevsync.ConfirmedCabCalls, currentFloor int) bool {
 	for f := 0; f < currentFloor; f++ {
 		if cabCalls[f] {
 			return true
@@ -71,7 +71,7 @@ func cabBelow(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
 	return false
 }
 
-func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.HallCallsBool) elevsync.HallCallsBool {
+func AssignCalls(allStates []elevsync.ConfirmedPeerElevator, hallCalls elevsync.ConfirmedHallCalls) elevsync.ConfirmedHallCalls {
 	execFile := ""
 
 	switch runtime.GOOS {
@@ -101,20 +101,20 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 			continue
 		}
 		tempState := assignerState{
-			Behaviour:   allStates[i].State.Behaviour.String(),
-			Floor:       allStates[i].State.Floor,
-			Direction:   allStates[i].State.Direction.String(),
-			CabRequests: allStates[i].CabCallsBool,
+			Behaviour:         allStates[i].State.Behaviour.String(),
+			Floor:             allStates[i].State.Floor,
+			Direction:         allStates[i].State.Direction.String(),
+			ConfirmedCabCalls: allStates[i].CabCalls,
 		}
-		states[allStates[i].ID] = tempState
+		states[allStates[i].Id] = tempState
 	}
 
 	if len(states) == 0 {
-		return elevsync.HallCallsBool{}
+		return elevsync.ConfirmedHallCalls{}
 	}
 	input := assignerInput{
-		HallRequests: hallRequests,
-		States:       states,
+		ConfirmedHallCalls: hallRequests,
+		States:             states,
 	}
 
 	jsonInput, err := json.Marshal(input)
@@ -141,5 +141,5 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 	// 		fmt.Println(floor[0], floor[1])
 	// 	}
 	// }
-	return (jsonOutput)[allStates[0].ID]
+	return (jsonOutput)[allStates[0].Id]
 }

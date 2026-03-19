@@ -13,7 +13,7 @@ import (
 func Elevator(
 	selfStateToMainC chan<- elevstate.ElevState,
 	completedCallToSyncC chan<- elevio.CallEvent,
-	selfCallsToElevatorC <-chan elevsync.CommonCalls,
+	selfCallsToElevatorC <-chan elevsync.ConfirmedCalls,
 	hardwareReconnectedC <-chan bool,
 ) {
 
@@ -28,8 +28,8 @@ func Elevator(
 	go elevio.PollStopButton(stopButtonC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
 
-	var hCalls elevsync.HallCallsBool
-	var cCalls elevsync.CabCallsBool
+	var hCalls elevsync.ConfirmedHallCalls
+	var cCalls elevsync.ConfirmedCabCalls
 
 	state := elevstate.ElevState{Behaviour: elevstate.Idle, Direction: elevstate.Down}
 
@@ -121,9 +121,9 @@ func Elevator(
 				fmt.Println("Illegal state:", strconv.Itoa(int(state.Behaviour)))
 				state.Behaviour = elevstate.Idle
 			}
-		case localCalls := <-selfCallsToElevatorC:
-			DrainChannel(selfCallsToElevatorC, &localCalls)
-			hCalls, cCalls = localCalls.HallCalls, localCalls.CabCalls
+		case selfCalls := <-selfCallsToElevatorC:
+			DrainChannel(selfCallsToElevatorC, &selfCalls)
+			hCalls, cCalls = selfCalls.HallCalls, selfCalls.CabCalls
 
 			switch state.Behaviour {
 			case elevstate.Moving:

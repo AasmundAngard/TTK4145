@@ -8,6 +8,18 @@ import (
 	"time"
 )
 
+// Elevator handles all the elevator logic.
+//
+// It implements a finite state machine that receives assigned calls,
+// controls the elevator movement and door, and interacts with hardware.
+//
+// Output:
+// 		completedCallToSyncC:  Reports its serviced calls to sync.
+// 		selfStateToMainC:      Passes its local state to main.
+//
+// Responsible for all hardware IO except button lights, and delegates
+// door timing and obstruction handling to the Door routine.
+
 func Elevator(
 	selfStateToMainC chan<- ElevState,
 	completedCallToSyncC chan<- elevio.CallEvent,
@@ -37,17 +49,12 @@ func Elevator(
 		<-motorTimeoutTimer.C
 	}
 
-	var i int = 0 // Debugging
-
 	for {
 
 		select {
 		case newFloor := <-floorReachedC:
-			fmt.Println("newfloor:", newFloor)
 			switch state.Behaviour {
 			case Moving:
-				fmt.Println("newfloor moving")
-
 				state.Floor = newFloor
 				elevio.SetFloorIndicator(state.Floor)
 				motorTimeoutTimer.Stop()
@@ -162,7 +169,7 @@ func Elevator(
 			}
 
 		case <-motorTimeoutTimer.C:
-			fmt.Println("Motor timed out")
+			fmt.Println("Motor timed out - motorstop detected")
 			state.MotorStop = true
 			if elevio.GetFloor() == -1 {
 				elevio.SetMotorDirection(state.Direction.ToMD())
@@ -194,10 +201,6 @@ func Elevator(
 			elevio.SetMotorDirection(elevio.MD_Stop)
 			state.Behaviour = Moving
 			state.MotorStop = true
-		// Debug to monitor state and alive
-		case <-time.After(3 * time.Second):
-			i++
-			fmt.Println("fsm", i, "state:", state.Floor, state.Direction, state.Behaviour)
 		}
 
 		selfStateToMainC <- state

@@ -14,6 +14,16 @@ import (
 	"time"
 )
 
+// main initializes the system and the main goroutines of the elevator.
+//
+// main acts as a coordinator between the goroutines Elevator and Sync, by
+// 	- Forwarding state from Elevator to Sync
+//  - Notifying Sync about hardware disconnects, by modifying the elevator state
+// 	- Receiving common hall calls, local cab calls and state of all peers from Sync
+// 	- Forwarding assigned calls to Elevator
+//
+// main also controls the elevator lights through the Lights goroutine.
+
 func main() {
 	time.Sleep(config.StartupWait)
 

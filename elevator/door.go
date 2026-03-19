@@ -6,13 +6,17 @@ import (
 	"time"
 )
 
-// Note to self:
-// Døra har egen intern timer og egen definert logikk og funksjonalitet, så gir mye mening å programmere
-// som egen statemachine, inkludert separere logikk
-// Vi sier bare når døra skal åpne, så sier døra selv når den klarer å lukke
-// Døra varsler om problemer (obstruction) den får
-// Dørlukking designes ikke for brukervennlighet, men for å fylle kravene og å være rask.
-// Legg til ekstra timer ved obstruction for brukervennlighet
+// Door controls the elevator door.
+//
+// It listens for door open command on openDoorC, monitors obstructions,
+// and controls the door lamp and timer internally.
+//
+// Input:
+// 		<-openDoorC: Command to open door or restart door timer
+// Output:
+// 		doorClosedC<-: Reports when door closed successfully
+// 		doorObstructedC<-true: Alerts when timer expired, but door failed to close because of an obstruction
+// 		doorObstructedC<-false: Notifies when obstruction clears after door previously failed to close
 
 type DoorState int
 

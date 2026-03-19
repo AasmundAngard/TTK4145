@@ -31,13 +31,41 @@ type peerElevator struct {
 	Alive   bool
 }
 
-type peerElevatorList []peerElevator
-
 type ConfirmedPeerElevator struct {
 	Id       string
 	State    elevstate.ElevState
 	CabCalls ConfirmedCabCalls
 }
+
+type SystemStatus struct {
+	SelfCabCalls    ConfirmedCabCalls
+	CommonHallCalls ConfirmedHallCalls
+	PeerElevators   []ConfirmedPeerElevator
+}
+
+func (systemStatus *SystemStatus) format(commonCalls ConfirmedCalls, peers peerElevatorList) {
+	systemStatus.SelfCabCalls = commonCalls.CabCalls
+	systemStatus.CommonHallCalls = commonCalls.HallCalls
+	systemStatus.PeerElevators = peers.workingElevatorsToStates()
+}
+
+func (thisSystemStatus *SystemStatus) Equals(thatSystemStatus SystemStatus) bool {
+	if thisSystemStatus.SelfCabCalls != thatSystemStatus.SelfCabCalls {
+		return false
+	}
+	if thisSystemStatus.CommonHallCalls != thatSystemStatus.CommonHallCalls {
+		return false
+	}
+	if len(thisSystemStatus.PeerElevators) != len(thatSystemStatus.PeerElevators) {
+		return false
+	}
+	if !reflect.DeepEqual(thisSystemStatus.PeerElevators, thatSystemStatus.PeerElevators) {
+		return false
+	}
+	return true
+}
+
+type peerElevatorList []peerElevator
 
 func (peers *peerElevatorList) getAlive(Id string) (bool, error) {
 	for _, peerElevator := range *peers {
@@ -108,41 +136,6 @@ func (peers *peerElevatorList) detectReconnect(previousAlivePeers []string) bool
 		}
 	}
 	return false
-}
-
-func (self *Calls) mergeHallCallsForgiving(peers *peerElevatorList) {
-	for floor := 0; floor < config.NumFloors; floor++ {
-		for btn := 0; btn < 2; btn++ {
-			maxVersion := int64(0)
-			needService := false
-
-			for _, peerElevator := range *peers {
-				if peerElevator.Alive && maxVersion < peerElevator.Calls.HallCalls[floor][btn].Version {
-					maxVersion = peerElevator.Calls.HallCalls[floor][btn].Version
-				}
-				if peerElevator.Alive && peerElevator.Calls.HallCalls[floor][btn].NeedService == UnservicedCall {
-					needService = UnservicedCall
-				}
-			}
-
-			if maxVersion < self.HallCalls[floor][btn].Version {
-				maxVersion = self.HallCalls[floor][btn].Version
-			}
-			if self.HallCalls[floor][btn].NeedService {
-				needService = true
-			}
-
-			self.HallCalls[floor][btn].NeedService = needService
-			self.HallCalls[floor][btn].Version = maxVersion + 1
-
-			for i, peerElevator := range *peers {
-				if peerElevator.Alive {
-					(*peers)[i].Calls.HallCalls[floor][btn].Version = maxVersion + 1
-					(*peers)[i].Calls.HallCalls[floor][btn].NeedService = needService
-				}
-			}
-		}
-	}
 }
 
 func (peers peerElevatorList) getCabCallsFromId(peerId string) CabCalls {
@@ -233,32 +226,4 @@ func (peers peerElevatorList) getIdsString() string {
 		ids += peerElevator.Id + " "
 	}
 	return ids
-}
-
-type SystemStatus struct {
-	SelfCabCalls    ConfirmedCabCalls
-	CommonHallCalls ConfirmedHallCalls
-	PeerElevators   []ConfirmedPeerElevator
-}
-
-func (systemStatus *SystemStatus) format(commonCalls ConfirmedCalls, peers peerElevatorList) {
-	systemStatus.SelfCabCalls = commonCalls.CabCalls
-	systemStatus.CommonHallCalls = commonCalls.HallCalls
-	systemStatus.PeerElevators = peers.workingElevatorsToStates()
-}
-
-func (thisSystemStatus *SystemStatus) Equals(thatSystemStatus SystemStatus) bool {
-	if thisSystemStatus.SelfCabCalls != thatSystemStatus.SelfCabCalls {
-		return false
-	}
-	if thisSystemStatus.CommonHallCalls != thatSystemStatus.CommonHallCalls {
-		return false
-	}
-	if len(thisSystemStatus.PeerElevators) != len(thatSystemStatus.PeerElevators) {
-		return false
-	}
-	if !reflect.DeepEqual(thisSystemStatus.PeerElevators, thatSystemStatus.PeerElevators) {
-		return false
-	}
-	return true
 }

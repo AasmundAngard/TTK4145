@@ -24,6 +24,107 @@ type Calls struct {
 	CabCalls  CabCalls
 }
 
+func (self *Calls) mergeHallCalls(incoming Calls) {
+	for floor := 0; floor < config.NumFloors; floor++ {
+		for btn := 0; btn < 2; btn++ {
+			if incoming.HallCalls[floor][btn].Version > self.HallCalls[floor][btn].Version {
+				(*self).HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
+			}
+		}
+	}
+}
+
+func (self *Calls) mergeCabCalls(cabCallsLists []CabCalls) {
+	mergedCabCalls := newCabCalls()
+
+	for _, cabCalls := range cabCallsLists {
+		for floor := 0; floor < config.NumFloors; floor++ {
+			if cabCalls[floor].Version > mergedCabCalls[floor].Version {
+				mergedCabCalls[floor] = cabCalls[floor]
+			}
+		}
+	}
+
+	for floor := 0; floor < config.NumFloors; floor++ {
+		mergedCabCalls[floor].NeedService = mergedCabCalls[floor].NeedService || self.CabCalls[floor].NeedService
+	}
+
+	(*self).CabCalls = mergedCabCalls
+}
+
+func (self *Calls) addCall(incoming elevio.CallEvent) {
+	floor := incoming.Floor
+	btn := incoming.Button
+	switch btn {
+	case elevio.BT_HallUp, elevio.BT_HallDown:
+		if self.HallCalls[floor][btn].NeedService != UnservicedCall {
+			(*self).HallCalls[floor][btn].NeedService = UnservicedCall
+			(*self).HallCalls[floor][btn].Version++
+		}
+	case elevio.BT_Cab:
+		if self.CabCalls[floor].NeedService != UnservicedCall {
+			(*self).CabCalls[floor].NeedService = UnservicedCall
+			(*self).CabCalls[floor].Version++
+		}
+	default:
+		panic("Invalid ButtonType " + strconv.Itoa(int(btn)))
+	}
+}
+
+func (self *Calls) removeCall(incoming elevio.CallEvent) {
+	floor := incoming.Floor
+	btn := incoming.Button
+	switch btn {
+	case elevio.BT_HallUp, elevio.BT_HallDown:
+		if self.HallCalls[floor][btn].NeedService != ServicedCall {
+			(*self).HallCalls[floor][btn].NeedService = ServicedCall
+			(*self).HallCalls[floor][btn].Version++
+		}
+	case elevio.BT_Cab:
+		if self.CabCalls[floor].NeedService != ServicedCall {
+			(*self).CabCalls[floor].NeedService = ServicedCall
+			(*self).CabCalls[floor].Version++
+		}
+	default:
+		panic("Invalid ButtonType " + strconv.Itoa(int(btn)))
+	}
+}
+
+func (self *Calls) mergeHallCallsForgiving(peers *peerElevatorList) {
+	for floor := 0; floor < config.NumFloors; floor++ {
+		for btn := 0; btn < 2; btn++ {
+			maxVersion := int64(0)
+			needService := false
+
+			for _, peerElevator := range *peers {
+				if peerElevator.Alive && maxVersion < peerElevator.Calls.HallCalls[floor][btn].Version {
+					maxVersion = peerElevator.Calls.HallCalls[floor][btn].Version
+				}
+				if peerElevator.Alive && peerElevator.Calls.HallCalls[floor][btn].NeedService == UnservicedCall {
+					needService = UnservicedCall
+				}
+			}
+
+			if maxVersion < self.HallCalls[floor][btn].Version {
+				maxVersion = self.HallCalls[floor][btn].Version
+			}
+			if self.HallCalls[floor][btn].NeedService {
+				needService = true
+			}
+
+			self.HallCalls[floor][btn].NeedService = needService
+			self.HallCalls[floor][btn].Version = maxVersion + 1
+
+			for i, peerElevator := range *peers {
+				if peerElevator.Alive {
+					(*peers)[i].Calls.HallCalls[floor][btn].Version = maxVersion + 1
+					(*peers)[i].Calls.HallCalls[floor][btn].NeedService = needService
+				}
+			}
+		}
+	}
+}
+
 func (c hallCalls) confirm() ConfirmedHallCalls {
 	var b ConfirmedHallCalls
 
@@ -78,34 +179,6 @@ func (h ConfirmedCabCalls) HasCalls() bool {
 	return false
 }
 
-func (self *Calls) mergeHallCalls(incoming Calls) {
-	for floor := 0; floor < config.NumFloors; floor++ {
-		for btn := 0; btn < 2; btn++ {
-			if incoming.HallCalls[floor][btn].Version > self.HallCalls[floor][btn].Version {
-				(*self).HallCalls[floor][btn] = incoming.HallCalls[floor][btn]
-			}
-		}
-	}
-}
-
-func (self *Calls) mergeCabCalls(cabCallsLists []CabCalls) {
-	mergedCabCalls := newCabCalls()
-
-	for _, cabCalls := range cabCallsLists {
-		for floor := 0; floor < config.NumFloors; floor++ {
-			if cabCalls[floor].Version > mergedCabCalls[floor].Version {
-				mergedCabCalls[floor] = cabCalls[floor]
-			}
-		}
-	}
-
-	for floor := 0; floor < config.NumFloors; floor++ {
-		mergedCabCalls[floor].NeedService = mergedCabCalls[floor].NeedService || self.CabCalls[floor].NeedService
-	}
-
-	(*self).CabCalls = mergedCabCalls
-}
-
 func (self Calls) decideCommonCalls(peerElevators peerElevatorList, selfState elevstate.ElevState) ConfirmedCalls {
 	var commonCalls ConfirmedCalls
 	commonCalls.HallCalls = self.HallCalls.confirm()
@@ -137,42 +210,4 @@ func (self Calls) decideCommonCalls(peerElevators peerElevatorList, selfState el
 	}
 
 	return commonCalls
-}
-
-func (self *Calls) addCall(incoming elevio.CallEvent) {
-	floor := incoming.Floor
-	btn := incoming.Button
-	switch btn {
-	case elevio.BT_HallUp, elevio.BT_HallDown:
-		if self.HallCalls[floor][btn].NeedService != UnservicedCall {
-			(*self).HallCalls[floor][btn].NeedService = UnservicedCall
-			(*self).HallCalls[floor][btn].Version++
-		}
-	case elevio.BT_Cab:
-		if self.CabCalls[floor].NeedService != UnservicedCall {
-			(*self).CabCalls[floor].NeedService = UnservicedCall
-			(*self).CabCalls[floor].Version++
-		}
-	default:
-		panic("Invalid ButtonType " + strconv.Itoa(int(btn)))
-	}
-}
-
-func (self *Calls) removeCall(incoming elevio.CallEvent) {
-	floor := incoming.Floor
-	btn := incoming.Button
-	switch btn {
-	case elevio.BT_HallUp, elevio.BT_HallDown:
-		if self.HallCalls[floor][btn].NeedService != ServicedCall {
-			(*self).HallCalls[floor][btn].NeedService = ServicedCall
-			(*self).HallCalls[floor][btn].Version++
-		}
-	case elevio.BT_Cab:
-		if self.CabCalls[floor].NeedService != ServicedCall {
-			(*self).CabCalls[floor].NeedService = ServicedCall
-			(*self).CabCalls[floor].Version++
-		}
-	default:
-		panic("Invalid ButtonType " + strconv.Itoa(int(btn)))
-	}
 }

@@ -55,7 +55,7 @@ func Elevator(
 				switch {
 				case hCalls[state.Floor][state.Direction] || cCalls[state.Floor]:
 					elevio.SetMotorDirection(elevio.MD_Stop)
-					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
+					clearCall(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction, state.Floor, hCalls, cCalls):
@@ -63,12 +63,13 @@ func Elevator(
 				case hCalls[state.Floor][state.Direction.Opposite()]:
 					elevio.SetMotorDirection(elevio.MD_Stop)
 					state.Direction = state.Direction.Opposite()
-					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
+					clearCall(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction.Opposite(), state.Floor, hCalls, cCalls):
 					state.Direction = state.Direction.Opposite()
 					elevio.SetMotorDirection(state.Direction.ToMD())
+					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 					state.Behaviour = Moving
 				default:
 					elevio.SetMotorDirection(elevio.MD_Stop)
@@ -90,27 +91,30 @@ func Elevator(
 				elevio.SetFloorIndicator(state.Floor)
 				openDoorC <- true
 				state.Behaviour = DoorOpen
-				callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
+				clearCall(state, &hCalls, &cCalls, completedCallToSyncC)
 			}
 		case <-doorClosedC:
 			switch state.Behaviour {
 			case DoorOpen:
 				switch {
 				case hCalls[state.Floor][state.Direction] || cCalls[state.Floor]:
-					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
+					clearCall(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction, state.Floor, hCalls, cCalls):
 					elevio.SetMotorDirection(state.Direction.ToMD())
+					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
+
 					state.Behaviour = Moving
 				case hCalls[state.Floor][state.Direction.Opposite()]:
 					state.Direction = state.Direction.Opposite()
-					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
+					clearCall(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction.Opposite(), state.Floor, hCalls, cCalls):
 					state.Direction = state.Direction.Opposite()
 					elevio.SetMotorDirection(state.Direction.ToMD())
+					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 					state.Behaviour = Moving
 				default:
 					state.Behaviour = Idle
@@ -128,27 +132,29 @@ func Elevator(
 				break
 			case DoorOpen:
 				if hCalls[state.Floor][state.Direction] || cCalls[state.Floor] {
-					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
+					clearCall(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				}
 			case Idle:
 				switch {
 				case hCalls[state.Floor][state.Direction] || cCalls[state.Floor]:
-					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
+					clearCall(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				case hCalls[state.Floor][state.Direction.Opposite()]:
 					state.Direction = state.Direction.Opposite()
-					callCompleted(state, &hCalls, &cCalls, completedCallToSyncC)
+					clearCall(state, &hCalls, &cCalls, completedCallToSyncC)
 					openDoorC <- true
 					state.Behaviour = DoorOpen
 				case orderInDirection(state.Direction, state.Floor, hCalls, cCalls):
 					elevio.SetMotorDirection(state.Direction.ToMD())
+					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 					state.Behaviour = Moving
 				case orderInDirection(state.Direction.Opposite(), state.Floor, hCalls, cCalls):
 					state.Direction = state.Direction.Opposite()
 					elevio.SetMotorDirection(state.Direction.ToMD())
+					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
 					state.Behaviour = Moving
 				}
 			default:
@@ -168,6 +174,7 @@ func Elevator(
 		case <-hardwareReconnectedC:
 			fmt.Println("hardware reconnected")
 			elevio.SetMotorDirection(elevio.MD_Stop)
+			motorTimeoutTimer.Stop()
 			currentFloor := elevio.GetFloor()
 			switch {
 			case currentFloor == -1:

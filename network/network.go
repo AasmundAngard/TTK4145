@@ -45,7 +45,7 @@ func initElevator(selfId string, selfCabCallsToSyncC chan<- []elevsync.CabCalls)
 	var collectedIDs []string
 
 	timeout := time.After(config.InitTimeout)
-	for len(collectedIDs) < config.NumElevators {
+	for len(collectedIDs) < (config.NumElevators - 1) {
 		select {
 		case cabMsg := <-cabCallsRxC:
 			if cabMsg.RequesterID == selfId {

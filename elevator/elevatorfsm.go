@@ -104,7 +104,6 @@ func Elevator(
 				case orderInDirection(state.Direction, state.Floor, hCalls, cCalls):
 					elevio.SetMotorDirection(state.Direction.ToMD())
 					motorTimeoutTimer = time.NewTimer(config.MotorTimeoutTime)
-
 					state.Behaviour = Moving
 				case hCalls[state.Floor][state.Direction.Opposite()]:
 					state.Direction = state.Direction.Opposite()
@@ -120,7 +119,7 @@ func Elevator(
 					state.Behaviour = Idle
 				}
 			default:
-				fmt.Println("Illegal state:", strconv.Itoa(int(state.Behaviour)))
+				fmt.Println("Door closed in illegal state:", strconv.Itoa(int(state.Behaviour)))
 				state.Behaviour = Idle
 			}
 		case localCalls := <-selfCallsToElevatorC:

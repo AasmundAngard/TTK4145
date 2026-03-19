@@ -12,13 +12,13 @@ type Calls struct {
 	CabCalls  CabCallsBool
 }
 
-func clearCall(state ElevState, hCalls *HallCallsBool, cCalls *CabCallsBool, completedCallToSyncC chan<- elevio.CallEvent) {
-	if cCalls[state.Floor] {
-		cCalls[state.Floor] = false
+func clearCall(state ElevState, hallCalls *HallCallsBool, cabCalls *CabCallsBool, completedCallToSyncC chan<- elevio.CallEvent) {
+	if cabCalls[state.Floor] {
+		cabCalls[state.Floor] = false
 		completedCallToSyncC <- state.ToCabCallEvent()
 	}
-	if hCalls[state.Floor][state.Direction] && !state.MotorStop && !state.DoorObstructed {
-		hCalls[state.Floor][state.Direction] = false
+	if hallCalls[state.Floor][state.Direction] && !state.MotorStop && !state.DoorObstructed {
+		hallCalls[state.Floor][state.Direction] = false
 		completedCallToSyncC <- state.ToHallCallEvent()
 	}
 }

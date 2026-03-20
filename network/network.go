@@ -35,7 +35,6 @@ import (
 )
 
 func initElevator(selfId string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
-func initElevator(selfId string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 	cabRequestTxC := make(chan string)
 	cabCallsRxC := make(chan elevsync.CabNetworkMsg)
 
@@ -71,8 +70,8 @@ func initElevator(selfId string, selfCabCallsToSyncC chan<- []elevsync.CabCalls)
 }
 
 func broadcastStatus(
-	statusTxC chan<- elevsync.NetworkMsg, 
-	requestStatusC chan<- struct{}, 
+	statusTxC chan<- elevsync.NetworkMsg,
+	requestStatusC chan<- struct{},
 	selfStatusToNetworkC <-chan elevsync.NetworkMsg) {
 	for {
 		requestStatusC <- struct{}{}
@@ -92,14 +91,14 @@ func broadcastCabCalls(cabMsg elevsync.CabNetworkMsg, cabCallsTxC chan<- elevsyn
 }
 
 func Network(
-	selfId string, 
-	selfStatusRequestToSyncC chan<- struct{},  
-	selfStatusToNetworkC <-chan elevsync.NetworkMsg, 
-	peerStatusUpdateToSyncC chan<- elevsync.NetworkMsg, 
-	alivePeersToSyncC chan<- []string, 
-	peerRequestCabCallsToSyncC chan<- string, 
-	peerCabCallsToNetworkC <-chan elevsync.CabNetworkMsg, 
-	selfCabCallsToSyncC chan<- []elevsync.CabCalls) { 
+	selfId string,
+	selfStatusRequestToSyncC chan<- struct{},
+	selfStatusToNetworkC <-chan elevsync.NetworkMsg,
+	peerStatusUpdateToSyncC chan<- elevsync.NetworkMsg,
+	alivePeersToSyncC chan<- []string,
+	peerRequestCabCallsToSyncC chan<- string,
+	peerCabCallsToNetworkC <-chan elevsync.CabNetworkMsg,
+	selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 
 	peerUpdateRxC := make(chan peers.PeerUpdate)
 	peerTxEnableC := make(chan bool)
@@ -124,7 +123,7 @@ func Network(
 	go broadcastStatus(statusTxC, selfStatusRequestToSyncC, selfStatusToNetworkC)
 
 	// Send request for cab calls to sync
-	go func() {  
+	go func() {
 		for {
 			requesterID := <-cabRequestRxC
 			if requesterID != selfId {

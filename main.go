@@ -33,7 +33,7 @@ func main() {
 	flag.Parse()
 
 	selfId := *selfIdPtr
-	fmt.Println(selfId)
+	fmt.Println("designated Id:", selfId)
 	port := *portPtr
 
 	hardwareDisconnectedC := make(chan bool, 1024)
@@ -106,7 +106,7 @@ func main() {
 
 		case syncedSystemStatus = <-syncedSystemStatusToMainC:
 			if syncedSystemStatus.Equals(prevSyncedSystemStatus) {
-				break
+				continue
 			}
 			updateElevator(selfId, state, syncedSystemStatus, selfCallsToElevatorC, commonCallsToLightsC)
 			prevSyncedSystemStatus = syncedSystemStatus

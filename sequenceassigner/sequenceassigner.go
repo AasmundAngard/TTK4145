@@ -1,8 +1,16 @@
 package sequenceassigner
 
+// Package sequenceassigner delegates hall-call assignments across the
+// distributed elevator system.
+//
+// It prepares a JSON representation of all active elevator states
+// and current hall requests, then invokes an external assignment executable
+// to compute which elevator should serve each hall call. The module filters
+// out elevators that cannot participate (e.g., obstructed or stopped), runs
+// the assigner, and returns the resulting hall-call allocation.
+
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"root/config"
@@ -10,12 +18,6 @@ import (
 	"runtime"
 )
 
-//encoding/json for translation for input and output .exe file
-// Use json.Marshal and json.Unmarshal
-
-//os/exec for running the executable
-
-// JSON input and output structure
 type assignerState struct {
 	Behaviour   string                 `json:"behaviour"`
 	Floor       int                    `json:"floor"`
@@ -28,50 +30,11 @@ type assignerInput struct {
 	States       map[string]assignerState  `json:"states"`
 }
 
-func requestsAbove(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
-	for f := currentFloor + 1; f < config.NumFloors; f++ {
-		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
-			return true
-		}
-	}
-	return false
-}
 
-func requestsBelow(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
-	for f := 0; f < currentFloor; f++ {
-		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
-			return true
-		}
-	}
-	return false
-}
-
-func requestsHere(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
-	if hallCalls[currentFloor][0] || hallCalls[currentFloor][1] || cabCalls[currentFloor] {
-		return true
-	}
-	return false
-}
-
-func cabAbove(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
-	for f := currentFloor + 1; f < config.NumFloors; f++ {
-		if cabCalls[f] {
-			return true
-		}
-	}
-	return false
-}
-
-func cabBelow(cabCalls elevsync.CabCallsBool, currentFloor int) bool {
-	for f := 0; f < currentFloor; f++ {
-		if cabCalls[f] {
-			return true
-		}
-	}
-	return false
-}
-
-func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.HallCallsBool) elevsync.HallCallsBool {
+func AssignCalls(
+	allStates []elevsync.OtherElevatorBool, 
+	hallCalls elevsync.HallCallsBool) elevsync.HallCallsBool {
+		
 	execFile := ""
 
 	switch runtime.GOOS {
@@ -83,19 +46,11 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 		panic("OS not supported.")
 	}
 
-	err := os.Chmod(execFile, 0700)
-	if err != nil {
-		fmt.Println("Error with file permissions: ", err)
-		panic(err)
-	}
+	os.Chmod(execFile, 0700)
 
 	hallRequests := hallCalls
 	states := make(map[string]assignerState)
 
-	// fmt.Println("All hallcalls:")
-	// for _, floor := range hallCalls {
-	// 	fmt.Println(floor[0], floor[1])
-	// }
 	for i := range allStates {
 		if allStates[i].State.MotorStop || allStates[i].State.DoorObstructed {
 			continue
@@ -112,34 +67,18 @@ func AssignCalls(allStates []elevsync.OtherElevatorBool, hallCalls elevsync.Hall
 	if len(states) == 0 {
 		return elevsync.HallCallsBool{}
 	}
+
 	input := assignerInput{
 		HallRequests: hallRequests,
 		States:       states,
 	}
 
-	jsonInput, err := json.Marshal(input)
-	if err != nil {
-		fmt.Println("Problem with json.Marshal(): ", err)
-		panic(err)
-	}
+	jsonInput, _ := json.Marshal(input)
 
-	assignerCmd, err := exec.Command("./"+execFile, "-i", string(jsonInput)).CombinedOutput()
-	if err != nil {
-		fmt.Println("Problem with exec.Command: ", err)
-		panic(err)
-	}
+	assignerCmd, _ := exec.Command("./"+execFile, "-i", string(jsonInput)).CombinedOutput()
 
 	var jsonOutput map[string][config.NumFloors][2]bool
-	err = json.Unmarshal(assignerCmd, &jsonOutput)
-	if err != nil {
-		fmt.Println("Problem with json.Unmarshal: ", err)
-		panic(err)
-	}
-	// for elevnum, elev := range jsonOutput {
-	// 	fmt.Println("Heis nummer:", elevnum)
-	// 	for _, floor := range elev {
-	// 		fmt.Println(floor[0], floor[1])
-	// 	}
-	// }
+	json.Unmarshal(assignerCmd, &jsonOutput)
+
 	return (jsonOutput)[allStates[0].ID]
 }

@@ -18,7 +18,7 @@ drainChannel:
 	}
 }
 
-func orderDone(state elevstate.ElevState, hCalls *elevsync.HallCallsBool, cCalls *elevsync.CabCallsBool, completedCallToSyncC chan<- elevio.CallEvent) {
+func orderDone(state elevstate.ElevState, hCalls *elevsync.ConfirmedHallCalls, cCalls *elevsync.ConfirmedCabCalls, completedCallToSyncC chan<- elevio.CallEvent) {
 	if cCalls[state.Floor] {
 		cCalls[state.Floor] = false
 		completedCallToSyncC <- state.ToCabCallEvent()
@@ -29,7 +29,7 @@ func orderDone(state elevstate.ElevState, hCalls *elevsync.HallCallsBool, cCalls
 	}
 }
 
-func orderInDirection(direction elevstate.Direction, floor int, hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool) bool {
+func orderInDirection(direction elevstate.Direction, floor int, hallCalls elevsync.ConfirmedHallCalls, cabCalls elevsync.ConfirmedCabCalls) bool {
 	switch direction {
 	case elevstate.Up:
 		return requestsAbove(hallCalls, cabCalls, floor)
@@ -39,7 +39,7 @@ func orderInDirection(direction elevstate.Direction, floor int, hallCalls elevsy
 		panic("Illegal direction")
 	}
 }
-func requestsAbove(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
+func requestsAbove(hallCalls elevsync.ConfirmedHallCalls, cabCalls elevsync.ConfirmedCabCalls, currentFloor int) bool {
 	for f := currentFloor + 1; f < config.NumFloors; f++ {
 		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
 			return true
@@ -48,7 +48,7 @@ func requestsAbove(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsB
 	return false
 }
 
-func requestsBelow(hallCalls elevsync.HallCallsBool, cabCalls elevsync.CabCallsBool, currentFloor int) bool {
+func requestsBelow(hallCalls elevsync.ConfirmedHallCalls, cabCalls elevsync.ConfirmedCabCalls, currentFloor int) bool {
 	for f := 0; f < currentFloor; f++ {
 		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
 			return true

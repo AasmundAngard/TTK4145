@@ -6,7 +6,7 @@ import (
 	"root/elevsync"
 )
 
-func Lights(commonCallsToLightsC <-chan elevsync.CommonCalls) {
+func Lights(commonCallsToLightsC <-chan elevsync.ConfirmedCalls) {
 	for {
 		calls := <-commonCallsToLightsC
 		for floor := 0; floor < config.NumFloors; floor++ {

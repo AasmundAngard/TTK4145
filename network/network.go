@@ -35,6 +35,7 @@ import (
 )
 
 func initElevator(selfId string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
+func initElevator(selfId string, selfCabCallsToSyncC chan<- []elevsync.CabCalls) {
 	cabRequestTxC := make(chan string)
 	cabCallsRxC := make(chan elevsync.CabNetworkMsg)
 
@@ -48,10 +49,10 @@ func initElevator(selfId string, selfCabCallsToSyncC chan<- []elevsync.CabCalls)
 	for len(collectedIDs) < (config.NumElevators - 1) {
 		select {
 		case cabMsg := <-cabCallsRxC:
-			if cabMsg.RequesterID == selfId {
-				if !slices.Contains(collectedIDs, cabMsg.SenderID) {
+			if cabMsg.RequesterId == selfId {
+				if !slices.Contains(collectedIDs, cabMsg.SenderId) {
 					collectedCalls = append(collectedCalls, cabMsg.CabCalls)
-					collectedIDs = append(collectedIDs, cabMsg.SenderID)
+					collectedIDs = append(collectedIDs, cabMsg.SenderId)
 				}
 			}
 
@@ -60,6 +61,8 @@ func initElevator(selfId string, selfCabCallsToSyncC chan<- []elevsync.CabCalls)
 			return
 
 		default:
+			fmt.Println("init default")
+			cabRequestTxC <- selfId
 			cabRequestTxC <- selfId
 			time.Sleep(config.InitRetryInterval)
 		}
@@ -100,6 +103,7 @@ func Network(
 
 	peerUpdateRxC := make(chan peers.PeerUpdate)
 	peerTxEnableC := make(chan bool)
+	go peers.Transmitter(config.PeerUpdatePort, selfId, peerTxEnableC)
 	go peers.Transmitter(config.PeerUpdatePort, selfId, peerTxEnableC)
 	go peers.Receiver(config.PeerUpdatePort, peerUpdateRxC)
 
@@ -149,7 +153,7 @@ func Network(
 			alivePeersToSyncC <- peerUpdate.Peers
 
 		case statusUpdate := <-statusRxC:
-			if statusUpdate.SenderID != selfId {
+			if statusUpdate.SenderId != selfId {
 				peerStatusUpdateToSyncC <- statusUpdate
 			}
 		}

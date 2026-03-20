@@ -42,7 +42,7 @@ func main() {
 
 	selfStateToMainC := make(chan elevstate.ElevState, 1024)
 	selfCallsToElevatorC := make(chan elevsync.ConfirmedCalls, 1024)
-	commonCallsToLightsC := make(chan elevsync.ConfirmedCalls, 1024)
+	confirmedCallsToLightsC := make(chan elevsync.ConfirmedCalls, 1024)
 
 	hardWareCallToSyncC := make(chan elevio.CallEvent, 1024)
 	completedCallToSyncC := make(chan elevio.CallEvent, 1024)
@@ -59,7 +59,7 @@ func main() {
 	alivePeersC := make(chan []string, 1024)
 
 	go elevator.Elevator(selfStateToMainC, completedCallToSyncC, selfCallsToElevatorC, hardwareReconnectedC)
-	go lights.Lights(commonCallsToLightsC)
+	go lights.Lights(confirmedCallsToLightsC)
 
 	go network.Network(
 		selfId,
@@ -108,10 +108,10 @@ func main() {
 			if syncedSystemStatus.Equals(prevSyncedSystemStatus) {
 				continue
 			}
-			updateElevator(selfId, state, syncedSystemStatus, selfCallsToElevatorC, commonCallsToLightsC)
+			updateElevator(selfId, state, syncedSystemStatus, selfCallsToElevatorC, confirmedCallsToLightsC)
 			prevSyncedSystemStatus = syncedSystemStatus
 		case <-reSyncTicker.C:
-			updateElevator(selfId, state, syncedSystemStatus, selfCallsToElevatorC, commonCallsToLightsC)
+			updateElevator(selfId, state, syncedSystemStatus, selfCallsToElevatorC, confirmedCallsToLightsC)
 		case <-hardwareDisconnectedC:
 			state.MotorStop = true
 			selfStateToSyncC <- state
@@ -124,7 +124,7 @@ func updateElevator(
 	state elevstate.ElevState,
 	syncedSystemStatus elevsync.SystemStatus,
 	selfCallsToElevatorC chan<- elevsync.ConfirmedCalls,
-	commonCallsToLightsC chan<- elevsync.ConfirmedCalls,
+	confirmedCallsToLightsC chan<- elevsync.ConfirmedCalls,
 ) {
 
 	allStates := append(
@@ -143,7 +143,7 @@ func updateElevator(
 		CabCalls:  syncedSystemStatus.SelfCabCalls,
 	}
 
-	commonCallsToLightsC <- elevsync.ConfirmedCalls{
+	confirmedCallsToLightsC <- elevsync.ConfirmedCalls{
 		HallCalls: syncedSystemStatus.CommonHallCalls,
 		CabCalls:  syncedSystemStatus.SelfCabCalls,
 	}

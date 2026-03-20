@@ -88,6 +88,8 @@ func main() {
 		alivePeersC,
 	)
 
+	reSyncTicker := time.NewTicker(config.ReSyncMain)
+
 	var state elevstate.ElevState
 	var prevState elevstate.ElevState
 	var syncedSystemStatus elevsync.SystemStatus
@@ -101,34 +103,48 @@ func main() {
 				selfStateToSyncC <- state
 				prevState = state
 			}
+
 		case syncedSystemStatus = <-syncedSystemStatusToMainC:
 			if syncedSystemStatus.Equals(prevSyncedSystemStatus) {
 				break
 			}
+			updateElevator(selfId, state, syncedSystemStatus, selfCallsToElevatorC, commonCallsToLightsC)
 			prevSyncedSystemStatus = syncedSystemStatus
-			allStates := append(
-				[]elevsync.ConfirmedPeerElevator{
-					{
-						Id:       selfId,
-						State:    state,
-						CabCalls: syncedSystemStatus.SelfCabCalls,
-					},
-				},
-				syncedSystemStatus.PeerElevators...,
-			)
-
-			selfCallsToElevatorC <- elevsync.ConfirmedCalls{
-				HallCalls: sequenceassigner.AssignCalls(allStates, syncedSystemStatus.CommonHallCalls),
-				CabCalls:  syncedSystemStatus.SelfCabCalls,
-			}
-
-			commonCallsToLightsC <- elevsync.ConfirmedCalls{
-				HallCalls: syncedSystemStatus.CommonHallCalls,
-				CabCalls:  syncedSystemStatus.SelfCabCalls,
-			}
+		case <-reSyncTicker.C:
+			updateElevator(selfId, state, syncedSystemStatus, selfCallsToElevatorC, commonCallsToLightsC)
 		case <-hardwareDisconnectedC:
 			state.MotorStop = true
 			selfStateToSyncC <- state
 		}
+	}
+}
+
+func updateElevator(
+	selfId string,
+	state elevstate.ElevState,
+	syncedSystemStatus elevsync.SystemStatus,
+	selfCallsToElevatorC chan<- elevsync.ConfirmedCalls,
+	commonCallsToLightsC chan<- elevsync.ConfirmedCalls,
+) {
+
+	allStates := append(
+		[]elevsync.ConfirmedPeerElevator{
+			{
+				Id:       selfId,
+				State:    state,
+				CabCalls: syncedSystemStatus.SelfCabCalls,
+			},
+		},
+		syncedSystemStatus.PeerElevators...,
+	)
+
+	selfCallsToElevatorC <- elevsync.ConfirmedCalls{
+		HallCalls: sequenceassigner.AssignCalls(allStates, syncedSystemStatus.CommonHallCalls),
+		CabCalls:  syncedSystemStatus.SelfCabCalls,
+	}
+
+	commonCallsToLightsC <- elevsync.ConfirmedCalls{
+		HallCalls: syncedSystemStatus.CommonHallCalls,
+		CabCalls:  syncedSystemStatus.SelfCabCalls,
 	}
 }

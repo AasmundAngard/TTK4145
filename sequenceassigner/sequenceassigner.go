@@ -33,7 +33,7 @@ type assignerInput struct {
 
 func AssignCalls(
 	allStates []elevsync.ConfirmedPeerElevator,
-	hallCalls elevsync.ConfirmedHallCalls) elevator.HallCallsBool {
+	hallCalls elevsync.ConfirmedHallCalls) elevator.HallCalls {
 
 	execFile := ""
 
@@ -65,7 +65,7 @@ func AssignCalls(
 	}
 
 	if len(states) == 0 {
-		return elevator.HallCallsBool{}
+		return elevator.HallCalls{}
 	}
 
 	input := assignerInput{

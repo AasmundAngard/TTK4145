@@ -40,7 +40,7 @@ func main() {
 	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors, hardwareDisconnectedC, hardwareReconnectedC)
 
 	selfStateToMainC := make(chan elevator.ElevState, 1024)
-	selfCallsToElevatorC := make(chan elevsync.ConfirmedCalls, 1024)
+	selfCallsToElevatorC := make(chan elevator.Calls, 1024)
 	commonCallsToLightsC := make(chan elevsync.ConfirmedCalls, 1024)
 
 	hardWareCallToSyncC := make(chan elevio.CallEvent, 1024)
@@ -116,9 +116,9 @@ func main() {
 				syncedSystemStatus.PeerElevators...,
 			)
 
-			selfCallsToElevatorC <- elevsync.ConfirmedCalls{
+			selfCallsToElevatorC <- elevator.Calls{
 				HallCalls: sequenceassigner.AssignCalls(allStates, syncedSystemStatus.CommonHallCalls),
-				CabCalls:  syncedSystemStatus.SelfCabCalls,
+				CabCalls:  elevator.CabCalls(syncedSystemStatus.SelfCabCalls),
 			}
 
 			commonCallsToLightsC <- elevsync.ConfirmedCalls{

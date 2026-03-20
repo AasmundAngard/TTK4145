@@ -27,7 +27,7 @@ import (
 func Elevator(
 	selfStateToMainC chan<- ElevState,
 	completedCallToSyncC chan<- elevio.CallEvent,
-	selfCallsToElevatorC <-chan elevsync.ConfirmedCalls,
+	selfCallsToElevatorC <-chan Calls,
 	hardwareReconnectedC <-chan bool,
 ) {
 

@@ -5,251 +5,157 @@ import (
 	"fmt"
 	"reflect"
 	"root/config"
-	"root/elevator"
+	"root/elevstate"
 	"slices"
 	"strconv"
 )
 
 type NetworkMsg struct {
 	Version  int64
-	SenderID string
+	SenderId string
 	Calls    Calls
-	State    elevator.ElevState
+	State    elevstate.ElevState
 }
 
 type CabNetworkMsg struct {
-	SenderID    string
-	RequesterID string
+	SenderId    string
+	RequesterId string
 	CabCalls    CabCalls
 }
 
-type OtherElevator struct {
-	ID      string
+type peerElevator struct {
+	Id      string
 	Version int64
 	Calls   Calls
-	State   elevator.ElevState
+	State   elevstate.ElevState
 	Alive   bool
 }
-type OtherElevatorList []OtherElevator
-type OtherElevatorBool struct {
-	ID           string
-	State        elevator.ElevState
-	CabCallsBool elevator.CabCallsBool
+
+type ConfirmedPeerElevator struct {
+	Id       string
+	State    elevstate.ElevState
+	CabCalls ConfirmedCabCalls
 }
 
-func (OtherElevatorList *OtherElevatorList) getAlive(ID string) (bool, error) {
-	for _, otherElevator := range *OtherElevatorList {
-		if otherElevator.ID == ID && otherElevator.Alive {
-			return true, nil
-		} else if otherElevator.ID == ID && !otherElevator.Alive {
-			return false, nil
+type SystemStatus struct {
+	SelfCabCalls    ConfirmedCabCalls
+	CommonHallCalls ConfirmedHallCalls
+	PeerElevators   []ConfirmedPeerElevator
+}
+
+func (systemStatus *SystemStatus) format(commonCalls ConfirmedCalls, peers peerElevatorList) {
+	systemStatus.SelfCabCalls = commonCalls.CabCalls
+	systemStatus.CommonHallCalls = commonCalls.HallCalls
+	systemStatus.PeerElevators = peers.workingElevatorsToStates()
+}
+
+func (thisSystemStatus *SystemStatus) Equals(thatSystemStatus SystemStatus) bool {
+	if thisSystemStatus.SelfCabCalls != thatSystemStatus.SelfCabCalls {
+		return false
+	}
+	if thisSystemStatus.CommonHallCalls != thatSystemStatus.CommonHallCalls {
+		return false
+	}
+	if len(thisSystemStatus.PeerElevators) != len(thatSystemStatus.PeerElevators) {
+		return false
+	}
+	if !reflect.DeepEqual(thisSystemStatus.PeerElevators, thatSystemStatus.PeerElevators) {
+		return false
+	}
+	return true
+}
+
+type peerElevatorList []peerElevator
+
+func (peers *peerElevatorList) getAlive(Id string) (bool, error) {
+	for _, peerElevator := range *peers {
+		if peerElevator.Id == Id {
+			return peerElevator.Alive, nil
 		}
 	}
-	return false, errors.New("ID not found")
+	return false, errors.New("id not found")
 }
 
-func (OtherElevatorList *OtherElevatorList) setAlive(SenderID string, aliveStatus bool) {
-	for i, elevator := range *OtherElevatorList {
-		if elevator.ID == SenderID {
-			(*OtherElevatorList)[i].Alive = aliveStatus
+func (peers *peerElevatorList) setAlive(senderId string, aliveStatus bool) {
+	for i, elevator := range *peers {
+		if elevator.Id == senderId {
+			(*peers)[i].Alive = aliveStatus
 			return
 		}
 	}
 }
-func (OtherElevatorList *OtherElevatorList) resetVersion(SenderID string) {
-	for i, elevator := range *OtherElevatorList {
-		if elevator.ID == SenderID {
-			(*OtherElevatorList)[i].Version = 0
+
+func (peers *peerElevatorList) resetVersion(senderId string) {
+	for i, elevator := range *peers {
+		if elevator.Id == senderId {
+			(*peers)[i].Version = 0
 			return
 		}
 	}
 }
 
-func (OtherElevatorList *OtherElevatorList) setHallCalls(SenderID string, HallCalls HallCalls) {
-	for i, elevator := range *OtherElevatorList {
-		if elevator.ID == SenderID {
-			(*OtherElevatorList)[i].Calls.HallCalls = HallCalls
+func (peers *peerElevatorList) setHallCalls(senderId string, hallCalls hallCalls) {
+	for i, elevator := range *peers {
+		if elevator.Id == senderId {
+			(*peers)[i].Calls.HallCalls = hallCalls
 			return
 		}
 	}
 }
 
-func (OtherElevatorList OtherElevatorList) findNewAndLostPeers(alivePeersList []string) ([]string, []string) {
+func (peers peerElevatorList) findNewAndLostPeers(alivePeers []string) ([]string, []string) {
 	var newPeers []string
 	var lostPeers []string
-	for _, peer := range alivePeersList {
-		newPeers = append(newPeers, peer)
-		for _, elevator := range OtherElevatorList {
-			if elevator.ID == peer {
-				newPeers = newPeers[:len(newPeers)-1]
+
+	for _, peerId := range alivePeers {
+		isKnown := false
+		for _, elevator := range peers {
+			if elevator.Id == peerId {
+				isKnown = true
+				break
 			}
 		}
-	}
-	for _, elevator := range OtherElevatorList {
-		lostPeers = append(lostPeers, elevator.ID)
-		for _, peer := range alivePeersList {
-			if elevator.ID == peer {
-				lostPeers = lostPeers[:len(lostPeers)-1]
-			}
+		if !isKnown {
+			newPeers = append(newPeers, peerId)
 		}
 	}
+
+	for _, elevator := range peers {
+		if !slices.Contains(alivePeers, elevator.Id) {
+			lostPeers = append(lostPeers, elevator.Id)
+		}
+	}
+
 	return newPeers, lostPeers
 }
 
-func (OtherElevatorList *OtherElevatorList) detectReconnect(prevAlivePeers []string) bool {
-	for id := range prevAlivePeers {
-		print(id)
-	}
-
-	for _, otherElevator := range *OtherElevatorList {
-		if otherElevator.Alive == true && slices.Contains(prevAlivePeers, otherElevator.ID) == false {
+func (peers *peerElevatorList) detectReconnect(previousAlivePeers []string) bool {
+	for _, peerElevator := range *peers {
+		if peerElevator.Alive && !slices.Contains(previousAlivePeers, peerElevator.Id) {
 			return true
 		}
 	}
 	return false
 }
 
-func (self *Calls) mergeHallCallsForgiving(OtherElevatorList *OtherElevatorList) {
-	for floor := 0; floor < config.NumFloors; floor++ {
-		for btn := 0; btn < 2; btn++ {
-
-			maxVersion := int64(0)
-			needService := false
-
-			for _, otherElevator := range *OtherElevatorList {
-				if maxVersion < otherElevator.Calls.HallCalls[floor][btn].Version && otherElevator.Alive == true {
-					maxVersion = otherElevator.Calls.HallCalls[floor][btn].Version
-				}
-				if otherElevator.Calls.HallCalls[floor][btn].NeedService == UnservicedCall && otherElevator.Alive == true {
-					needService = UnservicedCall
-				}
-			}
-
-			// Check self as well, and update version number and needService for the elevators.
-			if maxVersion < self.HallCalls[floor][btn].Version {
-				maxVersion = self.HallCalls[floor][btn].Version
-			}
-			if self.HallCalls[floor][btn].NeedService == true {
-				needService = true
-
-			}
-			(*self).HallCalls[floor][btn].NeedService = needService
-			(*self).HallCalls[floor][btn].Version = maxVersion + 1
-			for i, otherElevator := range *OtherElevatorList {
-				if otherElevator.Alive == true {
-					(*OtherElevatorList)[i].Calls.HallCalls[floor][btn].Version = maxVersion + 1
-					(*OtherElevatorList)[i].Calls.HallCalls[floor][btn].NeedService = needService
-				}
-			}
+func (peers peerElevatorList) getCabCallsFromId(peerId string) CabCalls {
+	for _, peerElevator := range peers {
+		if peerElevator.Id == peerId {
+			return peerElevator.Calls.CabCalls
 		}
 	}
+	return newCabCalls()
 }
 
-// Blocking, to make sure the elevators have synchronized data before ruining everything
-func (OtherElevatorList *OtherElevatorList) updateSelfInOthersAndOthersInSelf(alivePeersList []string,
-	alivePeersC <-chan []string,
-	otherDataToSyncC <-chan NetworkMsg,
-	networkRequestSelfDataC <-chan struct{},
-	selfDataToNetworkC chan<- NetworkMsg,
-	NetworkMsgVersion int64, id string, localCallsPtr *Calls, localStatePtr *elevator.ElevState, otherCabCallsRequestC <-chan string, otherCabCallsToNetworkC chan<- CabCalls) int64 {
-
-	var ReconnectRespondents []string
-	var incomingNetworkMsg NetworkMsg
-
-	DrainChannel(otherDataToSyncC, &incomingNetworkMsg)
-
-	print("Waiting for responses")
-	for len(ReconnectRespondents) < len(alivePeersList)-1 {
-		if (len(alivePeersList)) == 1 {
-			break
-		}
-
-		select {
-		//===========================
-		// Denne må stå først, for at heisen skal begynne å sende ut det den har, før den mottar oppdatert state.
-		// Hvorfor skal vi egentlig måtte ha de andre?
-		case ID := <-otherCabCallsRequestC:
-			// Heis sender ID og spør om sine cab calls
-			//print("Request calls")
-			fmt.Println("request calls 2:")
-			// otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromID(ID)
-			for _, elev := range *OtherElevatorList {
-				for _, floor := range elev.Calls.CabCalls {
-					fmt.Println(floor.NeedService)
-				}
-			}
-			// Dette gir false for alle når requesten skjer
-
-			cabBalls := OtherElevatorList.getCabCallsfromID(ID)
-			for _, floor := range cabBalls {
-				fmt.Println(floor.NeedService)
-			}
-			otherCabCallsToNetworkC <- cabBalls
-			continue
-
-		case incomingNetworkMsg := <-otherDataToSyncC:
-			// Mottar nettverk-melding
-			// Kan motta melding fra oppstartende heis med feil cab calls
-			if !slices.Contains(ReconnectRespondents, incomingNetworkMsg.SenderID) {
-				ReconnectRespondents = append(ReconnectRespondents, incomingNetworkMsg.SenderID)
-				fmt.Println("before without version check")
-				for _, elev := range *OtherElevatorList {
-					for _, floor := range elev.Calls.CabCalls {
-						fmt.Println(floor.NeedService)
-					}
-				}
-				fmt.Println(incomingNetworkMsg)
-				// Oppstartende heis sender sin egen state før den har mottatt sine cab calls
-				(*OtherElevatorList).updateWithoutVersionCheck(incomingNetworkMsg)
-				fmt.Println("after without version check")
-				for _, elev := range *OtherElevatorList {
-					for _, floor := range elev.Calls.CabCalls {
-						fmt.Println(floor.NeedService)
-					}
-				}
-			}
-
-		case <-networkRequestSelfDataC:
-			// Network spør hele tiden om lokal state for å sende den
-			selfDataToNetworkC <- NetworkMsg{Version: NetworkMsgVersion, SenderID: id, Calls: *localCallsPtr, State: *localStatePtr}
-			NetworkMsgVersion++
-
-		case alivePeersList := <-alivePeersC:
-			// Her mottas oppdatering om ny peer
-			// Burde man bare sende cab calls med en gang kanskje?
-			// Samme kanal som elevsync.go
-			OtherElevatorList.updateAliveStatus(alivePeersList)
-
-		}
-	}
-
-	print("Received responses from all alive elevators, continuing")
-	return NetworkMsgVersion
-}
-
-func (otherElevatorList OtherElevatorList) getCabCallsfromID(ID string) CabCalls {
-	cabCalls := newCabCalls()
-
-	for _, otherElevator := range otherElevatorList {
-		if otherElevator.ID == ID {
-			return otherElevator.Calls.CabCalls
-		}
-	}
-	return cabCalls
-}
-
-func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg) {
+func (peers *peerElevatorList) update(incoming NetworkMsg) {
 	elevatorFound := false
 
-	for i, otherElevator := range *OtherElevatorList {
-		if otherElevator.ID == incomingNetworkMsg.SenderID {
-			// fmt.Println("update")
-			// fmt.Println(otherElevator.Version, incomingNetworkMsg.Version)
-			if otherElevator.Version < incomingNetworkMsg.Version {
-				// fmt.Println("update newer version")
-				(*OtherElevatorList)[i].State = incomingNetworkMsg.State
-				(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
-				(*OtherElevatorList)[i].Version = incomingNetworkMsg.Version
+	for i, peerElevator := range *peers {
+		if peerElevator.Id == incoming.SenderId {
+			if peerElevator.Version < incoming.Version {
+				(*peers)[i].State = incoming.State
+				(*peers)[i].Calls = incoming.Calls
+				(*peers)[i].Version = incoming.Version
 			}
 			elevatorFound = true
 			break
@@ -257,113 +163,67 @@ func (OtherElevatorList *OtherElevatorList) update(incomingNetworkMsg NetworkMsg
 	}
 
 	if !elevatorFound {
-		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls, Alive: true})
-		if len(*OtherElevatorList) > config.NumElevators-1 {
-			panic("Too many elevators in the system:" + strconv.Itoa(len(*OtherElevatorList)) + " " + OtherElevatorList.getIDsString())
+		*peers = append(*peers, peerElevator{Id: incoming.SenderId, Version: incoming.Version, State: incoming.State, Calls: incoming.Calls, Alive: true})
+		if len(*peers) > config.NumElevators-1 {
+			panic("too many elevators in the system: " + strconv.Itoa(len(*peers)) + " " + peers.getIdsString())
 		}
 	}
 }
 
-func (OtherElevatorList *OtherElevatorList) updateWithoutVersionCheck(incomingNetworkMsg NetworkMsg) {
+func (peers *peerElevatorList) updateWithoutVersionCheck(incoming NetworkMsg) {
 	elevatorFound := false
 
-	for i, otherElevator := range *OtherElevatorList {
-		if otherElevator.ID == incomingNetworkMsg.SenderID {
-			(*OtherElevatorList)[i].State = incomingNetworkMsg.State
-			(*OtherElevatorList)[i].Calls = incomingNetworkMsg.Calls
-			(*OtherElevatorList)[i].Version = incomingNetworkMsg.Version
+	for i, peerElevator := range *peers {
+		if peerElevator.Id == incoming.SenderId {
+			(*peers)[i].State = incoming.State
+			(*peers)[i].Calls = incoming.Calls
+			(*peers)[i].Version = incoming.Version
 			elevatorFound = true
 			break
 		}
 	}
 
 	if !elevatorFound {
-		*OtherElevatorList = append(*OtherElevatorList, OtherElevator{ID: incomingNetworkMsg.SenderID, Version: incomingNetworkMsg.Version, State: incomingNetworkMsg.State, Calls: incomingNetworkMsg.Calls, Alive: true})
-		if len(*OtherElevatorList) > config.NumElevators-1 {
-			panic("Too many elevators in the system:" + strconv.Itoa(len(*OtherElevatorList)) + " " + OtherElevatorList.getIDsString())
+		*peers = append(*peers, peerElevator{Id: incoming.SenderId, Version: incoming.Version, State: incoming.State, Calls: incoming.Calls, Alive: true})
+		if len(*peers) > config.NumElevators-1 {
+			panic("too many elevators in the system: " + strconv.Itoa(len(*peers)) + " " + peers.getIdsString())
 		}
 	}
 }
 
-func (OtherElevatorList *OtherElevatorList) updateAliveStatus(alivePeersList []string) []string {
+func (peers *peerElevatorList) updateAliveStatus(alivePeers []string) []string {
 	returnedElevators := []string{}
 
-	for i, otherElevator := range *OtherElevatorList {
-		alive := false
-		for _, alivePeer := range alivePeersList {
-			if otherElevator.ID == alivePeer {
-				alive = true
-				break
-			}
+	for i, peerElevator := range *peers {
+		alive := slices.Contains(alivePeers, peerElevator.Id)
+		if !(*peers)[i].Alive && alive {
+			returnedElevators = append(returnedElevators, peerElevator.Id)
 		}
-		if (*OtherElevatorList)[i].Alive == false && alive == true {
-			// Reconnect
-			returnedElevators = append(returnedElevators, (*OtherElevatorList).getIDsString())
-
-		}
-		(*OtherElevatorList)[i].Alive = alive
+		(*peers)[i].Alive = alive
 		if !alive {
-			fmt.Println("Elevator " + otherElevator.ID + " is dead.")
+			fmt.Println("Elevator " + peerElevator.Id + " is dead.")
 		}
 	}
+
 	return returnedElevators
 }
 
-func (OtherElevatorList OtherElevatorList) workingElevsOnlyToBool() []OtherElevatorBool {
-	var OtherElevatorBoolList []OtherElevatorBool
+func (peers peerElevatorList) workingElevatorsToStates() []ConfirmedPeerElevator {
+	var peerStates []ConfirmedPeerElevator
 
-	for _, otherElevator := range OtherElevatorList {
-		if otherElevator.Alive == true {
-			OtherElevatorBoolList = append(OtherElevatorBoolList, OtherElevatorBool{ID: otherElevator.ID, State: otherElevator.State, CabCallsBool: otherElevator.Calls.CabCalls.toBool()})
+	for _, peerElevator := range peers {
+		if peerElevator.Alive {
+			peerStates = append(peerStates, ConfirmedPeerElevator{Id: peerElevator.Id, State: peerElevator.State, CabCalls: peerElevator.Calls.CabCalls.confirm()})
 		}
 	}
 
-	return OtherElevatorBoolList
+	return peerStates
 }
 
-func (OtherElevatorList OtherElevatorList) getIDsString() string {
-	var IDs string
-
-	//Inneficient, but only used for debug
-	for _, otherElevator := range OtherElevatorList {
-		IDs += otherElevator.ID + " "
+func (peers peerElevatorList) getIdsString() string {
+	var ids string
+	for _, peerElevator := range peers {
+		ids += peerElevator.Id + " "
 	}
-
-	return IDs
-}
-
-type SyncedData struct {
-	LocalCabCalls         elevator.CabCallsBool
-	SyncedHallCalls       elevator.HallCallsBool
-	OtherElevatorBoolList []OtherElevatorBool
-}
-
-func (syncedData *SyncedData) format(confirmedCalls elevator.Calls, OtherElevatorList OtherElevatorList) {
-	syncedData.LocalCabCalls = confirmedCalls.CabCalls
-	syncedData.SyncedHallCalls = confirmedCalls.HallCalls
-	syncedData.OtherElevatorBoolList = OtherElevatorList.workingElevsOnlyToBool()
-}
-func (thisSyncedData *SyncedData) Equals(otherSyncedData SyncedData) bool {
-	if thisSyncedData.LocalCabCalls != otherSyncedData.LocalCabCalls {
-		return false
-	} else if thisSyncedData.SyncedHallCalls != otherSyncedData.SyncedHallCalls {
-		return false
-	} else if len(thisSyncedData.OtherElevatorBoolList) != len(otherSyncedData.OtherElevatorBoolList) {
-		// Not handled by DeepEqual :(, and needed to update main when elevators disconnect as main rejects messages with same data as earlier
-		return false
-	} else if !reflect.DeepEqual(thisSyncedData.OtherElevatorBoolList, otherSyncedData.OtherElevatorBoolList) {
-		return false
-	}
-	return true
-}
-
-func DrainChannel[T any](variableC <-chan T, variable *T) {
-drainChannel:
-	for {
-		select {
-		case *variable = <-variableC:
-		default:
-			break drainChannel
-		}
-	}
+	return ids
 }

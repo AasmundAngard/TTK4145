@@ -88,7 +88,7 @@ func main() {
 		alivePeersC,
 	)
 
-	reSyncTicker := time.NewTicker(config.ReSyncMain)
+	reSyncTicker := time.NewTicker(config.ReSyncMainInterval)
 
 	var state elevstate.ElevState
 	var prevState elevstate.ElevState

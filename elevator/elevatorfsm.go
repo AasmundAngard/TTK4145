@@ -42,8 +42,8 @@ func Elevator(
 	go elevio.PollStopButton(stopButtonC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
 
-	var hCalls elevsync.ConfirmedHallCalls
-	var cCalls elevsync.ConfirmedCabCalls
+	var hCalls HallCalls
+	var cCalls CabCalls
 
 	state := ElevState{Behaviour: Idle, Direction: Down}
 

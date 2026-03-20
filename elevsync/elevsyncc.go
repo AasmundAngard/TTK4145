@@ -1,14 +1,14 @@
 package elevsync
 
 import (
+	"root/elevator"
 	"root/elevio"
-	"root/elevstate"
 )
 
 func Sync(id string,
 	hardwareCallToSyncC <-chan elevio.CallEvent,
 	completedCallToSyncC <-chan elevio.CallEvent,
-	selfStateToSyncC <-chan elevstate.ElevState,
+	selfStateToSyncC <-chan elevator.ElevState,
 	syncedVariablesToMainC chan<- SyncedData,
 	otherDataToSyncC <-chan NetworkMsg,
 	otherCabCallsRequestC <-chan string,
@@ -19,10 +19,10 @@ func Sync(id string,
 	alivePeersC <-chan []string) {
 
 	var localCalls Calls
-	var localState elevstate.ElevState
+	var localState elevator.ElevState
 	var OtherElevatorList OtherElevatorList
 
-	var confirmedCalls CommonCalls
+	var confirmedCalls elevator.Calls
 	var syncedData SyncedData
 
 	var NetworkMsgVersion int64 = 1

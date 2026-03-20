@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"root/config"
+	"root/elevator"
 	"root/elevsync"
 	"runtime"
 )
@@ -30,11 +31,10 @@ type assignerInput struct {
 	States       map[string]assignerState  `json:"states"`
 }
 
-
 func AssignCalls(
-	allStates []elevsync.OtherElevatorBool, 
-	hallCalls elevsync.HallCallsBool) elevsync.HallCallsBool {
-		
+	allStates []elevsync.OtherElevatorBool,
+	hallCalls elevator.HallCallsBool) elevator.HallCallsBool {
+
 	execFile := ""
 
 	switch runtime.GOOS {
@@ -65,7 +65,7 @@ func AssignCalls(
 	}
 
 	if len(states) == 0 {
-		return elevsync.HallCallsBool{}
+		return elevator.HallCallsBool{}
 	}
 
 	input := assignerInput{

@@ -2,8 +2,8 @@ package elevsync
 
 import (
 	"root/config"
+	"root/elevator"
 	"root/elevio"
-	"root/elevstate"
 	"strconv"
 )
 
@@ -24,8 +24,8 @@ type Calls struct {
 	CabCalls  CabCalls
 }
 
-func (c HallCalls) toBool() HallCallsBool {
-	var b HallCallsBool
+func (c HallCalls) toBool() elevator.HallCallsBool {
+	var b elevator.HallCallsBool
 
 	for i, e := range c {
 		b[i][0] = e[0].NeedService
@@ -35,8 +35,8 @@ func (c HallCalls) toBool() HallCallsBool {
 	return b
 }
 
-func (c CabCalls) toBool() CabCallsBool {
-	var b CabCallsBool
+func (c CabCalls) toBool() elevator.CabCallsBool {
+	var b elevator.CabCallsBool
 
 	for i, e := range c {
 		b[i] = e.NeedService
@@ -52,30 +52,6 @@ func newCabCalls() CabCalls {
 		cabCalls[floor].Version = 0
 	}
 	return cabCalls
-}
-
-type HallCallsBool [config.NumFloors][2]bool
-type CabCallsBool [config.NumFloors]bool
-type CommonCalls struct {
-	HallCalls HallCallsBool
-	CabCalls  CabCallsBool
-}
-
-func (h HallCallsBool) HasCalls() bool {
-	for _, floor := range h {
-		if floor[0] == true || floor[1] == true {
-			return true
-		}
-	}
-	return false
-}
-func (h CabCallsBool) HasCalls() bool {
-	for _, floor := range h {
-		if floor == true {
-			return true
-		}
-	}
-	return false
 }
 
 func (self *Calls) mergeHallCalls(incoming Calls) {
@@ -106,8 +82,8 @@ func (self *Calls) mergeCabCalls(incomingCabCallsLists []CabCalls) {
 	(*self).CabCalls = mergedCabCalls
 }
 
-func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList, localState elevstate.ElevState) CommonCalls {
-	var confirmedCalls CommonCalls
+func (self Calls) decideCommonCalls(otherElevatorList OtherElevatorList, localState elevator.ElevState) elevator.Calls {
+	var confirmedCalls elevator.Calls
 	confirmedCalls.HallCalls = self.HallCalls.toBool()
 	confirmedCalls.CabCalls = self.CabCalls.toBool()
 

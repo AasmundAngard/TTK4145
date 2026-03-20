@@ -6,7 +6,6 @@ import (
 	"root/config"
 	"root/elevator"
 	"root/elevio"
-	"root/elevstate"
 	"root/elevsync"
 	"root/lights"
 	"root/network"
@@ -15,28 +14,38 @@ import (
 	"time"
 )
 
+// main initializes the system and the main goroutines of the elevator.
+//
+// main later acts as a coordinator between the goroutines Elevator and Sync, by
+// 	- Forwarding state from Elevator to Sync
+//  - Notifying Sync about hardware disconnects, by modifying the elevator state
+// 	- Receiving common hall calls, local cab calls and state of all peers from Sync
+// 	- Forwarding assigned calls to Elevator
+//
+// main also controls the elevator lights through the Lights goroutine.
+
 func main() {
 	time.Sleep(config.StartupWait)
 
-	idPtr := flag.String("id", "defaultID", "ID of elevator, overwrite using -id=<newId>")
+	selfIdPtr := flag.String("id", "defaultID", "ID of elevator, overwrite using -id=<newId>")
 	portPtr := flag.Int("port", config.HardwarePortNumber, "Port of the hardware server, overwrite using -port=<newPort>")
 	flag.Parse()
 
-	id := *idPtr
-	fmt.Println(id)
+	selfId := *selfIdPtr
+	fmt.Println(selfId)
 	port := *portPtr
 
 	hardwareDisconnectedC := make(chan bool, 1024)
 	hardwareReconnectedC := make(chan bool, 1024)
 	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors, hardwareDisconnectedC, hardwareReconnectedC)
 
-	selfStateToMainC := make(chan elevstate.ElevState, 1024)
-	selfCallsToElevatorC := make(chan elevsync.CommonCalls, 1024)
-	commonCallsToLightsC := make(chan elevsync.CommonCalls, 1024)
+	selfStateToMainC := make(chan elevator.ElevState, 1024)
+	selfCallsToElevatorC := make(chan elevator.Calls, 1024)
+	commonCallsToLightsC := make(chan elevator.Calls, 1024)
 
 	hardWareCallToSyncC := make(chan elevio.CallEvent, 1024)
 	completedCallToSyncC := make(chan elevio.CallEvent, 1024)
-	selfStateToSyncC := make(chan elevstate.ElevState, 1024)
+	selfStateToSyncC := make(chan elevator.ElevState, 1024)
 	syncedVariablesToMainC := make(chan elevsync.SyncedData, 1024)
 	otherDataToSyncC := make(chan elevsync.NetworkMsg, 1024)
 
@@ -51,7 +60,7 @@ func main() {
 	go lights.Lights(commonCallsToLightsC)
 
 	go network.Network(
-		id,
+		selfId,
 		networkRequestSelfDataC,
 		selfDataToNetworkC,
 		otherDataToSyncC,
@@ -63,7 +72,7 @@ func main() {
 
 	go elevio.PollButtons(hardWareCallToSyncC)
 	go elevsync.Sync(
-		id,
+		selfId,
 		hardWareCallToSyncC,
 		completedCallToSyncC,
 		selfStateToSyncC,
@@ -77,13 +86,10 @@ func main() {
 		alivePeersC,
 	)
 
-	var state elevstate.ElevState
-	var prevState elevstate.ElevState
+	var state elevator.ElevState
+	var prevState elevator.ElevState
 	var syncedVariables elevsync.SyncedData
 	var prevSyncedVariables elevsync.SyncedData
-
-	syncTicker := time.NewTicker(time.Hour)
-	// syncTicker := time.NewTicker(config.SyncTimeout)
 
 	for {
 
@@ -98,42 +104,29 @@ func main() {
 				break
 			}
 			prevSyncedVariables = syncedVariables
-			updateElevator(id, state, syncedVariables, selfCallsToElevatorC, commonCallsToLightsC)
-		case <-syncTicker.C:
-			updateElevator(id, state, syncedVariables, selfCallsToElevatorC, commonCallsToLightsC)
+			allStates := append(
+				[]elevsync.OtherElevatorBool{
+					{
+						ID:           selfId,
+						State:        state,
+						CabCallsBool: syncedVariables.LocalCabCalls,
+					},
+				},
+				syncedVariables.OtherElevatorBoolList...,
+			)
+
+			selfCallsToElevatorC <- elevator.Calls{
+				HallCalls: sequenceassigner.AssignCalls(allStates, syncedVariables.SyncedHallCalls),
+				CabCalls:  syncedVariables.LocalCabCalls,
+			}
+
+			commonCallsToLightsC <- elevator.Calls{
+				HallCalls: syncedVariables.SyncedHallCalls,
+				CabCalls:  syncedVariables.LocalCabCalls,
+			}
 		case <-hardwareDisconnectedC:
 			state.MotorStop = true
 			selfStateToSyncC <- state
 		}
-	}
-}
-
-func updateElevator(
-	id string,
-	state elevstate.ElevState,
-	synced elevsync.SyncedData,
-	selfCallsToElevatorC chan<- elevsync.CommonCalls,
-	commonCallsToLightsC chan<- elevsync.CommonCalls,
-) {
-
-	allStates := append(
-		[]elevsync.OtherElevatorBool{
-			{
-				ID:           id,
-				State:        state,
-				CabCallsBool: synced.LocalCabCalls,
-			},
-		},
-		synced.OtherElevatorBoolList...,
-	)
-
-	selfCallsToElevatorC <- elevsync.CommonCalls{
-		HallCalls: sequenceassigner.AssignCalls(allStates, synced.SyncedHallCalls),
-		CabCalls:  synced.LocalCabCalls,
-	}
-
-	commonCallsToLightsC <- elevsync.CommonCalls{
-		HallCalls: synced.SyncedHallCalls,
-		CabCalls:  synced.LocalCabCalls,
 	}
 }

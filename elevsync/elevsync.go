@@ -31,15 +31,15 @@ package elevsync
 //   - Maintain and bump local outbound NetworkMsg version when requested.
 
 import (
-	"root/elevator"
 	"root/elevio"
+	"root/elevstate"
 )
 
 func Sync(selfId string,
 	hardwareCallToSyncC <-chan elevio.CallEvent,
 	completedCallToSyncC <-chan elevio.CallEvent,
 
-	selfStateToSyncC <-chan elevator.ElevState,
+	selfStateToSyncC <-chan elevstate.ElevState,
 	syncedSystemStatusToMainC chan<- SystemStatus,
 	peerStatusUpdateToSyncC <-chan NetworkMsg,
 	peerRequestCabCallsToSyncC <-chan string,
@@ -52,7 +52,7 @@ func Sync(selfId string,
 
 	// local data
 	var selfCalls Calls
-	var selfState elevator.ElevState
+	var selfState elevstate.ElevState
 	var selfNetworkMsgVersion int64 = 1
 	var hasRestoredCabCalls = false
 	var peerElevatorList peerElevatorList

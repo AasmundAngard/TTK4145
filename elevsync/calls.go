@@ -2,8 +2,8 @@ package elevsync
 
 import (
 	"root/config"
-	"root/elevator"
 	"root/elevio"
+	"root/elevstate"
 	"strconv"
 )
 
@@ -179,7 +179,7 @@ func (h ConfirmedCabCalls) HasCalls() bool {
 	return false
 }
 
-func (self Calls) decideCommonCalls(peerElevators peerElevatorList, selfState elevator.ElevState) ConfirmedCalls {
+func (self Calls) decideCommonCalls(peerElevators peerElevatorList, selfState elevstate.ElevState) ConfirmedCalls {
 	var commonCalls ConfirmedCalls
 	commonCalls.HallCalls = self.HallCalls.confirm()
 	commonCalls.CabCalls = self.CabCalls.confirm()

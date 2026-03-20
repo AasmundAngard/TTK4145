@@ -3,16 +3,11 @@ package elevator
 import (
 	"root/config"
 	"root/elevio"
+	"root/elevstate"
+	"root/elevsync"
 )
 
-type HallCalls [config.NumFloors][2]bool
-type CabCalls [config.NumFloors]bool
-type Calls struct {
-	HallCalls HallCalls
-	CabCalls  CabCalls
-}
-
-func clearCall(state ElevState, hallCalls *HallCalls, cabCalls *CabCalls, completedCallToSyncC chan<- elevio.CallEvent) {
+func clearCall(state elevstate.ElevState, hallCalls *elevsync.ConfirmedHallCalls, cabCalls *elevsync.ConfirmedCabCalls, completedCallToSyncC chan<- elevio.CallEvent) {
 	if cabCalls[state.Floor] {
 		cabCalls[state.Floor] = false
 		completedCallToSyncC <- state.ToCabCallEvent()
@@ -23,17 +18,17 @@ func clearCall(state ElevState, hallCalls *HallCalls, cabCalls *CabCalls, comple
 	}
 }
 
-func orderInDirection(direction Direction, floor int, hallCalls HallCalls, cabCalls CabCalls) bool {
+func callInDirection(direction elevstate.Direction, floor int, hallCalls elevsync.ConfirmedHallCalls, cabCalls elevsync.ConfirmedCabCalls) bool {
 	switch direction {
-	case Up:
-		return requestsAbove(hallCalls, cabCalls, floor)
-	case Down:
-		return requestsBelow(hallCalls, cabCalls, floor)
+	case elevstate.Up:
+		return callsAbove(hallCalls, cabCalls, floor)
+	case elevstate.Down:
+		return callsBelow(hallCalls, cabCalls, floor)
 	default:
 		panic("Illegal direction")
 	}
 }
-func requestsAbove(hallCalls HallCalls, cabCalls CabCalls, currentFloor int) bool {
+func callsAbove(hallCalls elevsync.ConfirmedHallCalls, cabCalls elevsync.ConfirmedCabCalls, currentFloor int) bool {
 	for f := currentFloor + 1; f < config.NumFloors; f++ {
 		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
 			return true
@@ -42,7 +37,7 @@ func requestsAbove(hallCalls HallCalls, cabCalls CabCalls, currentFloor int) boo
 	return false
 }
 
-func requestsBelow(hallCalls HallCalls, cabCalls CabCalls, currentFloor int) bool {
+func callsBelow(hallCalls elevsync.ConfirmedHallCalls, cabCalls elevsync.ConfirmedCabCalls, currentFloor int) bool {
 	for f := 0; f < currentFloor; f++ {
 		if (hallCalls[f][0]) || (hallCalls[f][1]) || (cabCalls[f]) {
 			return true

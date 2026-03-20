@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"root/config"
-	"root/elevator"
+	"root/elevstate"
 	"slices"
 	"strconv"
 )
@@ -14,7 +14,7 @@ type NetworkMsg struct {
 	Version  int64
 	SenderId string
 	Calls    Calls
-	State    elevator.ElevState
+	State    elevstate.ElevState
 }
 
 type CabNetworkMsg struct {
@@ -27,13 +27,13 @@ type peerElevator struct {
 	Id      string
 	Version int64
 	Calls   Calls
-	State   elevator.ElevState
+	State   elevstate.ElevState
 	Alive   bool
 }
 
 type ConfirmedPeerElevator struct {
 	Id       string
-	State    elevator.ElevState
+	State    elevstate.ElevState
 	CabCalls ConfirmedCabCalls
 }
 

@@ -6,6 +6,7 @@ import (
 	"root/config"
 	"root/elevator"
 	"root/elevio"
+	"root/elevstate"
 	"root/elevsync"
 	"root/lights"
 	"root/network"
@@ -39,13 +40,13 @@ func main() {
 	hardwareReconnectedC := make(chan bool, 1024)
 	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors, hardwareDisconnectedC, hardwareReconnectedC)
 
-	selfStateToMainC := make(chan elevator.ElevState, 1024)
-	selfCallsToElevatorC := make(chan elevator.Calls, 1024)
+	selfStateToMainC := make(chan elevstate.ElevState, 1024)
+	selfCallsToElevatorC := make(chan elevsync.ConfirmedCalls, 1024)
 	commonCallsToLightsC := make(chan elevsync.ConfirmedCalls, 1024)
 
 	hardWareCallToSyncC := make(chan elevio.CallEvent, 1024)
 	completedCallToSyncC := make(chan elevio.CallEvent, 1024)
-	selfStateToSyncC := make(chan elevator.ElevState, 1024)
+	selfStateToSyncC := make(chan elevstate.ElevState, 1024)
 	syncedSystemStatusToMainC := make(chan elevsync.SystemStatus, 1024)
 
 	otherDataToSyncC := make(chan elevsync.NetworkMsg, 1024)
@@ -87,8 +88,8 @@ func main() {
 		alivePeersC,
 	)
 
-	var state elevator.ElevState
-	var prevState elevator.ElevState
+	var state elevstate.ElevState
+	var prevState elevstate.ElevState
 	var syncedSystemStatus elevsync.SystemStatus
 	var prevSyncedSystemStatus elevsync.SystemStatus
 
@@ -116,9 +117,9 @@ func main() {
 				syncedSystemStatus.PeerElevators...,
 			)
 
-			selfCallsToElevatorC <- elevator.Calls{
+			selfCallsToElevatorC <- elevsync.ConfirmedCalls{
 				HallCalls: sequenceassigner.AssignCalls(allStates, syncedSystemStatus.CommonHallCalls),
-				CabCalls:  elevator.CabCalls(syncedSystemStatus.SelfCabCalls),
+				CabCalls:  syncedSystemStatus.SelfCabCalls,
 			}
 
 			commonCallsToLightsC <- elevsync.ConfirmedCalls{

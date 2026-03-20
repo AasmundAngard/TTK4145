@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"root/config"
-	"root/elevator"
 	"root/elevsync"
 	"runtime"
 )
@@ -33,7 +32,7 @@ type assignerInput struct {
 
 func AssignCalls(
 	allStates []elevsync.ConfirmedPeerElevator,
-	hallCalls elevsync.ConfirmedHallCalls) elevator.HallCalls {
+	hallCalls elevsync.ConfirmedHallCalls) elevsync.ConfirmedHallCalls {
 
 	execFile := ""
 
@@ -65,7 +64,7 @@ func AssignCalls(
 	}
 
 	if len(states) == 0 {
-		return elevator.HallCalls{}
+		return elevsync.ConfirmedHallCalls{}
 	}
 
 	input := assignerInput{

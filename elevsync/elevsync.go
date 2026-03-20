@@ -1,107 +1,151 @@
 package elevsync
 
+// Package elevsync synchronizes elevator call data and peer states across the
+// distributed elevator system.
+//
+// It collects local inputs (hardware calls, completed calls, local elevator
+// state, restored cab calls, and alive-peer lists) and incoming network status
+// messages from peers. It merges and version-checks hall and cab calls,
+// maintains a peer list with liveness and versioning, performs forgiving merges
+// on reconnects, and decides which calls are confirmed common calls.
+//
+// Inputs:
+//   <- hardwareCallToSyncC        : local button press events
+//   <- completedCallToSyncC       : reports of serviced calls
+//   <- selfStateToSyncC           : local elevator state updates
+//   <- peerStatusUpdateToSyncC    : incoming NetworkMsg from peers
+//   <- peerRequestCabCallsToSyncC : peer requests for cab calls
+//   <- selfCabCallsToSyncC        : restored local cab calls (on startup)
+//   <- alivePeersToSyncC          : list of currently alive peer IDs
+//   <- selfStatusRequestToSyncC   : request to publish local NetworkMsg
+//
+// Outputs:
+//   -> syncedSystemStatusToMainC  : aggregated SystemStatus for main
+//   -> selfStatusToNetworkC       : outgoing NetworkMsg (on request)
+//   -> peerCabCallsToNetworkC     : responses to peers requesting cab calls
+//
+// Responsibilities:
+//   - Merge incoming call data with local calls using versioning rules.
+//   - Handle peer discovery, lost peers, and reconnects (forgiving merges).
+//   - Produce confirmed common calls and a snapshot of peer states.
+//   - Maintain and bump local outbound NetworkMsg version when requested.
+
 import (
-	"fmt"
 	"root/elevator"
 	"root/elevio"
-	"slices"
 )
 
-func SyncOld(id string,
+func Sync(selfId string,
 	hardwareCallToSyncC <-chan elevio.CallEvent,
 	completedCallToSyncC <-chan elevio.CallEvent,
+
 	selfStateToSyncC <-chan elevator.ElevState,
-	syncedVariablesToMainC chan<- SyncedData,
-	otherDataToSyncC <-chan NetworkMsg,
-	otherCabCallsRequestC <-chan string,
-	otherCabCallsToNetworkC chan<- CabCalls,
+	syncedSystemStatusToMainC chan<- SystemStatus,
+	peerStatusUpdateToSyncC <-chan NetworkMsg,
+	peerRequestCabCallsToSyncC <-chan string,
+	peerCabCallsToNetworkC chan<- CabNetworkMsg,
+
 	selfCabCallsToSyncC <-chan []CabCalls,
-	networkRequestSelfDataC <-chan struct{},
-	selfDataToNetworkC chan<- NetworkMsg,
-	alivePeersC <-chan []string) {
+	selfStatusRequestToSyncC <-chan struct{},
+	selfStatusToNetworkC chan<- NetworkMsg,
+	alivePeersToSyncC <-chan []string) {
 
-	var localCalls Calls
-	var localState elevator.ElevState
-	var OtherElevatorList OtherElevatorList
+	// local data
+	var selfCalls Calls
+	var selfState elevator.ElevState
+	var selfNetworkMsgVersion int64 = 1
+	var hasRestoredCabCalls = false
+	var peerElevatorList peerElevatorList
 
-	var confirmedCalls elevator.Calls
-	var syncedData SyncedData
+	// exported data
+	var commonCalls ConfirmedCalls
+	var syncedSystemStatus SystemStatus
 
-	var NetworkMsgVersion int64 = 0
-
-	var prevAlivePeers []string
-
-	var cabCallsRestored = false
 	for {
 		select {
-		case incomingHardwareCall := <-hardwareCallToSyncC:
-			localCalls.addCall(incomingHardwareCall)
+		case hardwareCall := <-hardwareCallToSyncC:
+			selfCalls.addCall(hardwareCall)
 
-		case incomingFinishedCall := <-completedCallToSyncC:
-			localCalls.removeCall(incomingFinishedCall)
+		case completedCall := <-completedCallToSyncC:
+			selfCalls.removeCall(completedCall)
 
-		case incomingLocalState := <-selfStateToSyncC:
-			localState = incomingLocalState
+		case newSelfState := <-selfStateToSyncC:
+			selfState = newSelfState
 
-		case incomingNetworkMsg := <-otherDataToSyncC:
-			OtherElevatorList.update(incomingNetworkMsg)
-			localCalls.mergeHallCalls(incomingNetworkMsg.Calls)
-
-		case <-networkRequestSelfDataC:
-			selfDataToNetworkC <- NetworkMsg{Version: NetworkMsgVersion, SenderID: id, Calls: localCalls, State: localState}
-			NetworkMsgVersion++
+		case <-selfStatusRequestToSyncC:
+			outgoingNetworkMsg := NetworkMsg{Version: selfNetworkMsgVersion, SenderId: selfId, Calls: selfCalls, State: selfState}
+			selfStatusToNetworkC <- outgoingNetworkMsg
+			selfNetworkMsgVersion++
 			continue
 
-		case alivePeersList := <-alivePeersC:
-			OtherElevatorList.updateAliveStatus(alivePeersList)
+		case incomingNetworkMsg := <-peerStatusUpdateToSyncC:
+			peerIsAlive, err := peerElevatorList.getAlive(incomingNetworkMsg.SenderId)
 
-			if OtherElevatorList.detectReconnect(prevAlivePeers) == true {
-				if cabCallsRestored == false {
-					incomingCabCallsList := <-selfCabCallsToSyncC
-					localCalls.mergeCabCalls(incomingCabCallsList)
-					cabCallsRestored = true
+			switch {
+			case peerIsAlive && err == nil:
+				selfCalls.mergeHallCalls(incomingNetworkMsg.Calls)
+				peerElevatorList.update(incomingNetworkMsg)
+
+			case !peerIsAlive && err == nil:
+				peerElevatorList.setAlive(incomingNetworkMsg.SenderId, true)
+				peerElevatorList.resetVersion(incomingNetworkMsg.SenderId) // Discards the old version which is outdated since the peer restarted
+				peerElevatorList.updateWithoutVersionCheck(incomingNetworkMsg)
+				peerElevatorList.setHallCalls(incomingNetworkMsg.SenderId, incomingNetworkMsg.Calls.HallCalls)
+				selfCalls.mergeHallCallsForgiving(&peerElevatorList) // Cannot guarantee data by version, so merge forgivingly
+
+			case err != nil: // New peer discovered through incoming status update
+				peerElevatorList = append(peerElevatorList, peerElevator{
+					Id:      incomingNetworkMsg.SenderId,
+					Version: 0,
+					Calls:   incomingNetworkMsg.Calls,
+					State:   incomingNetworkMsg.State,
+					Alive:   true,
+				},
+				)
+				selfCalls.mergeHallCallsForgiving(&peerElevatorList) // Cannot guarantee data by version, so merge forgivingly
+			}
+
+		case alivePeersList := <-alivePeersToSyncC:
+			newPeers, lostPeers := peerElevatorList.findNewAndLostPeers(alivePeersList)
+
+			for _, peerId := range newPeers {
+				peerIsAlive, err := peerElevatorList.getAlive(peerId)
+
+				if !peerIsAlive && err == nil {
+					peerElevatorList.setAlive(peerId, true)
+					peerElevatorList.resetVersion(peerId)
 				}
-
-				// =====================================
-				// Denne funksjonen overskriver cab calls
-				NetworkMsgVersion = OtherElevatorList.updateSelfInOthersAndOthersInSelf(alivePeersList, alivePeersC, otherDataToSyncC, networkRequestSelfDataC, selfDataToNetworkC, NetworkMsgVersion, id, &localCalls, &localState, otherCabCallsRequestC, otherCabCallsToNetworkC)
-
-				localCalls.mergeHallCallsForgiving(&OtherElevatorList)
-				//print("Merging calls forgivingly")
 			}
 
-			prevAlivePeers = slices.Clone(alivePeersList)
+			for _, peerId := range lostPeers {
+				peerIsAlive, err := peerElevatorList.getAlive(peerId)
 
-			//Edge case: Another elevator is requesting its cab calls from this elevator
-		case ID := <-otherCabCallsRequestC:
-			// En heis spør om sine cab calls
-			//print("Request calls")
-			fmt.Println("request calls:")
-			// otherCabCallsToNetworkC <- OtherElevatorList.getCabCallsfromID(ID)
-			for _, elev := range OtherElevatorList {
-				for _, floor := range elev.Calls.CabCalls {
-					fmt.Println(floor.NeedService)
+				if peerIsAlive && err == nil {
+					peerElevatorList.setAlive(peerId, false)
 				}
 			}
-			// Dette gir false for alle når requesten skjer
 
-			cabBalls := OtherElevatorList.getCabCallsfromID(ID)
-			for _, floor := range cabBalls {
-				fmt.Println(floor.NeedService)
+		case peerId := <-peerRequestCabCallsToSyncC: // Peer is requesting its cab calls
+			peerIsAlive, err := peerElevatorList.getAlive(peerId)
+			otherCabCalls := peerElevatorList.getCabCallsFromId(peerId)
+			peerCabCallsToNetworkC <- CabNetworkMsg{SenderId: selfId, RequesterId: peerId, CabCalls: otherCabCalls}
+
+			if !peerIsAlive && err == nil {
+				peerElevatorList.setAlive(peerId, true)
+				peerElevatorList.resetVersion(peerId)
 			}
-			otherCabCallsToNetworkC <- cabBalls
-			continue
+
+		case incomingCabCallsList := <-selfCabCallsToSyncC: // Self is receiving its cab calls
+			if !hasRestoredCabCalls {
+				selfCalls.mergeCabCalls(incomingCabCallsList)
+			}
+			hasRestoredCabCalls = true
 		}
-		// for i := range OtherElevatorList {
-		// 	fmt.Println(i)
-		// 	for _, floor := range OtherElevatorList[i].Calls.CabCalls {
-		// 		fmt.Println(floor)
-		// 	}
-		// }
-		confirmedCalls = localCalls.decideCommonCalls(OtherElevatorList, localState)
 
-		syncedData.format(confirmedCalls, OtherElevatorList)
+		commonCalls = selfCalls.decideCommonCalls(peerElevatorList, selfState)
 
-		syncedVariablesToMainC <- syncedData
+		syncedSystemStatus.format(commonCalls, peerElevatorList)
+
+		syncedSystemStatusToMainC <- syncedSystemStatus
 	}
 }

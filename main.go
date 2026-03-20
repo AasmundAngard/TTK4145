@@ -40,13 +40,14 @@ func main() {
 	elevio.Init("localhost:"+strconv.Itoa(port), config.NumFloors, hardwareDisconnectedC, hardwareReconnectedC)
 
 	selfStateToMainC := make(chan elevator.ElevState, 1024)
-	selfCallsToElevatorC := make(chan elevator.Calls, 1024)
-	commonCallsToLightsC := make(chan elevator.Calls, 1024)
+	selfCallsToElevatorC := make(chan elevsync.ConfirmedCalls, 1024)
+	commonCallsToLightsC := make(chan elevsync.ConfirmedCalls, 1024)
 
 	hardWareCallToSyncC := make(chan elevio.CallEvent, 1024)
 	completedCallToSyncC := make(chan elevio.CallEvent, 1024)
 	selfStateToSyncC := make(chan elevator.ElevState, 1024)
-	syncedVariablesToMainC := make(chan elevsync.SyncedData, 1024)
+	syncedSystemStatusToMainC := make(chan elevsync.SystemStatus, 1024)
+
 	otherDataToSyncC := make(chan elevsync.NetworkMsg, 1024)
 
 	otherCabCallsRequestC := make(chan string, 1024)
@@ -76,7 +77,7 @@ func main() {
 		hardWareCallToSyncC,
 		completedCallToSyncC,
 		selfStateToSyncC,
-		syncedVariablesToMainC,
+		syncedSystemStatusToMainC,
 		otherDataToSyncC,
 		otherCabCallsRequestC,
 		otherCabCallsToNetworkC,
@@ -88,8 +89,8 @@ func main() {
 
 	var state elevator.ElevState
 	var prevState elevator.ElevState
-	var syncedVariables elevsync.SyncedData
-	var prevSyncedVariables elevsync.SyncedData
+	var syncedSystemStatus elevsync.SystemStatus
+	var prevSyncedSystemStatus elevsync.SystemStatus
 
 	for {
 
@@ -99,30 +100,30 @@ func main() {
 				selfStateToSyncC <- state
 				prevState = state
 			}
-		case syncedVariables = <-syncedVariablesToMainC:
-			if syncedVariables.Equals(prevSyncedVariables) {
+		case syncedSystemStatus = <-syncedSystemStatusToMainC:
+			if syncedSystemStatus.Equals(prevSyncedSystemStatus) {
 				break
 			}
-			prevSyncedVariables = syncedVariables
+			prevSyncedSystemStatus = syncedSystemStatus
 			allStates := append(
-				[]elevsync.OtherElevatorBool{
+				[]elevsync.ConfirmedPeerElevator{
 					{
-						ID:           selfId,
-						State:        state,
-						CabCallsBool: syncedVariables.LocalCabCalls,
+						Id:       selfId,
+						State:    state,
+						CabCalls: syncedSystemStatus.SelfCabCalls,
 					},
 				},
-				syncedVariables.OtherElevatorBoolList...,
+				syncedSystemStatus.PeerElevators...,
 			)
 
-			selfCallsToElevatorC <- elevator.Calls{
-				HallCalls: sequenceassigner.AssignCalls(allStates, syncedVariables.SyncedHallCalls),
-				CabCalls:  syncedVariables.LocalCabCalls,
+			selfCallsToElevatorC <- elevsync.ConfirmedCalls{
+				HallCalls: sequenceassigner.AssignCalls(allStates, syncedSystemStatus.CommonHallCalls),
+				CabCalls:  syncedSystemStatus.SelfCabCalls,
 			}
 
-			commonCallsToLightsC <- elevator.Calls{
-				HallCalls: syncedVariables.SyncedHallCalls,
-				CabCalls:  syncedVariables.LocalCabCalls,
+			commonCallsToLightsC <- elevsync.ConfirmedCalls{
+				HallCalls: syncedSystemStatus.CommonHallCalls,
+				CabCalls:  syncedSystemStatus.SelfCabCalls,
 			}
 		case <-hardwareDisconnectedC:
 			state.MotorStop = true

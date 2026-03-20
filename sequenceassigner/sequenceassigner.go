@@ -20,20 +20,20 @@ import (
 )
 
 type assignerState struct {
-	Behaviour   string                 `json:"behaviour"`
-	Floor       int                    `json:"floor"`
-	Direction   string                 `json:"direction"`
-	CabRequests [config.NumFloors]bool `json:"cabRequests"`
+	Behaviour         string                 `json:"behaviour"`
+	Floor             int                    `json:"floor"`
+	Direction         string                 `json:"direction"`
+	ConfirmedCabCalls [config.NumFloors]bool `json:"cabRequests"`
 }
 
 type assignerInput struct {
-	HallRequests [config.NumFloors][2]bool `json:"hallRequests"`
-	States       map[string]assignerState  `json:"states"`
+	ConfirmedHallCalls [config.NumFloors][2]bool `json:"hallRequests"`
+	States             map[string]assignerState  `json:"states"`
 }
 
 func AssignCalls(
-	allStates []elevsync.OtherElevatorBool,
-	hallCalls elevator.HallCallsBool) elevator.HallCallsBool {
+	allStates []elevsync.ConfirmedPeerElevator,
+	hallCalls elevsync.ConfirmedHallCalls) elevator.HallCallsBool {
 
 	execFile := ""
 
@@ -56,12 +56,12 @@ func AssignCalls(
 			continue
 		}
 		tempState := assignerState{
-			Behaviour:   allStates[i].State.Behaviour.String(),
-			Floor:       allStates[i].State.Floor,
-			Direction:   allStates[i].State.Direction.String(),
-			CabRequests: allStates[i].CabCallsBool,
+			Behaviour:         allStates[i].State.Behaviour.String(),
+			Floor:             allStates[i].State.Floor,
+			Direction:         allStates[i].State.Direction.String(),
+			ConfirmedCabCalls: allStates[i].CabCalls,
 		}
-		states[allStates[i].ID] = tempState
+		states[allStates[i].Id] = tempState
 	}
 
 	if len(states) == 0 {
@@ -69,8 +69,8 @@ func AssignCalls(
 	}
 
 	input := assignerInput{
-		HallRequests: hallRequests,
-		States:       states,
+		ConfirmedHallCalls: hallRequests,
+		States:             states,
 	}
 
 	jsonInput, _ := json.Marshal(input)
@@ -80,5 +80,5 @@ func AssignCalls(
 	var jsonOutput map[string][config.NumFloors][2]bool
 	json.Unmarshal(assignerCmd, &jsonOutput)
 
-	return (jsonOutput)[allStates[0].ID]
+	return (jsonOutput)[allStates[0].Id]
 }

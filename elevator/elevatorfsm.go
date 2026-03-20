@@ -27,7 +27,7 @@ import (
 func Elevator(
 	selfStateToMainC chan<- ElevState,
 	completedCallToSyncC chan<- elevio.CallEvent,
-	selfCallsToElevatorC <-chan Calls,
+	selfCallsToElevatorC <-chan elevsync.ConfirmedCalls,
 	hardwareReconnectedC <-chan bool,
 ) {
 
@@ -42,8 +42,8 @@ func Elevator(
 	go elevio.PollStopButton(stopButtonC)
 	go Door(openDoorC, doorClosedC, doorObstructedC)
 
-	var hCalls HallCallsBool
-	var cCalls CabCallsBool
+	var hCalls elevsync.ConfirmedHallCalls
+	var cCalls elevsync.ConfirmedCabCalls
 
 	state := ElevState{Behaviour: Idle, Direction: Down}
 
@@ -133,9 +133,9 @@ func Elevator(
 				fmt.Println("Door closed in illegal state:", strconv.Itoa(int(state.Behaviour)))
 				state.Behaviour = Idle
 			}
-		case localCalls := <-selfCallsToElevatorC:
-			DrainChannel(selfCallsToElevatorC, &localCalls)
-			hCalls, cCalls = localCalls.HallCalls, localCalls.CabCalls
+		case selfCalls := <-selfCallsToElevatorC:
+			DrainChannel(selfCallsToElevatorC, &selfCalls)
+			hCalls, cCalls = selfCalls.HallCalls, selfCalls.CabCalls
 
 			switch state.Behaviour {
 			case Moving:

@@ -180,9 +180,10 @@ func GetObstruction() bool {
 
 func read(in [4]byte) [4]byte {
 	_mtx.Lock()
+	defer _mtx.Unlock()
 
 	_, err := _conn.Write(in[:])
-	if err != nil {
+	for err != nil {
 		reconnect()
 		_, err = _conn.Write(in[:])
 	}
@@ -194,20 +195,20 @@ func read(in [4]byte) [4]byte {
 		_, err = _conn.Write(in[:])
 		_, err = _conn.Read(out[:])
 	}
-	_mtx.Unlock()
 
 	return out
 }
 
 func write(in [4]byte) {
 	_mtx.Lock()
+	defer _mtx.Unlock()
+
 	_, err := _conn.Write(in[:])
 
-	if err != nil {
+	for err != nil {
 		reconnect()
 		_, err = _conn.Write(in[:])
 	}
-	_mtx.Unlock()
 }
 
 func toByte(a bool) byte {

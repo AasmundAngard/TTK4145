@@ -33,7 +33,7 @@ func main() {
 	flag.Parse()
 
 	selfId := *selfIdPtr
-	fmt.Println("designated Id:", selfId)
+	fmt.Println("selfId:", selfId)
 	port := *portPtr
 
 	hardwareDisconnectedC := make(chan bool, 1024)
